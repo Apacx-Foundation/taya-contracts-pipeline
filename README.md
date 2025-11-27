@@ -16,7 +16,7 @@ flows for Sepolia and Polygon.
     trigger Etherscan verification.
 - **Submodule managed deps**: `lib/taya-conditional-tokens-contracts`,
   `lib/taya-conditional-tokens-market-makers`, `lib/taya-uma-ctf-adapter`,
-  `lib/openzeppelin-contracts@v2.3.0` and `lib/forge-std` are proper git
+  and `lib/forge-std` are proper git
   submodules so we can pin upstream commits. Bringing in the market-maker repo
   lets us ship the deterministic FPMM factory alongside the CT + UMA stack.
 
