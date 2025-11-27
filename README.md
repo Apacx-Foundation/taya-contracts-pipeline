@@ -2,8 +2,7 @@
 
 This package contains the Foundry-based tooling we use to compile, deploy and
 verify the on-chain components that power the Taya conditional tokens +
-UMA adapter stack. It bundles the “legacy” Gnosis Conditional Tokens contracts,
-our custom `taya-uma-ctf-adapter` submodule, plus a set of scripted deploy
+UMA adapter stack. It bundles the “legacy” Gnosis Conditional Tokens contracts, plus a set of scripted deploy
 flows for Sepolia and Polygon.
 
 ### Features
@@ -67,7 +66,7 @@ forge --version    # should show forge Version: 1.4.4-stable (or newer)
 This script will:
 
 - run `forge build` for the `ctf`, `market`, and default profiles
-- deploy `ConditionalTokens`, `FPMMDeterministicFactory`, and `UmaCtfAdapterDemo`
+- deploy `ConditionalTokens`, `FPMMDeterministicFactory`, and `UmaCtfAdapterDemo` (Demo contract with 10 second `SAFETY_PERIOD` for QA purposes)
 - update `config/networks/11155111.json` with `ctf`, `fpmmFactory`, and adapter
 - verify all three contracts (adapter uses `--root lib/taya-uma-ctf-adapter`,
   CT + FPMM reuse their submodule sources with the
@@ -81,7 +80,7 @@ This script will:
 
 Same flow as above but targeting the Polygon RPC + Polygonscan key. Adjust
 `config/networks/137.json` before running. The factory is deployed/verified on
-Polygon as well so you can spin up FPMMs against mainnet CT deployments.
+Polygon as well so you can spin up FPMMs against mainnet CT deployments. Default `UmaCtfAdapter` is deployed with 1hr `SAFETY_PERIOD` as well.
 
 ### Fixed Product Market Maker Factory
 
