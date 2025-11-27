@@ -1,0 +1,15 @@
+{
+  "admins": [
+    "0x53118050CC8fC8C6925CdC842b1784dcBa9A4ba9",
+    "0x374334e22B5d6898AF77AC4d907d8b9Aca206605",
+    "0x083Eb744254768AeB40BDB05bb022e4f868970db"
+  ],
+  "tokens": {
+    "pht": "0xbfC1b782072467A05Fbf45101EC8CbDF779Fb02a",
+    "usdc": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+  },
+  "uma": {
+    "finder": "0xf4C48eDAd256326086AEfbd1A53e1896815F8f13",
+    "optimisticOracleV2": "0x9f1263B8f0355673619168b5B8c0248f1d03e88C"
+  }
+}

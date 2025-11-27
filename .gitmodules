@@ -1,0 +1,12 @@
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/taya-conditional-tokens-market-makers"]
+	path = lib/taya-conditional-tokens-market-makers
+	url = https://github.com/Apacx-Foundation/taya-conditional-tokens-market-makers
+[submodule "lib/taya-uma-ctf-adapter"]
+	path = lib/taya-uma-ctf-adapter
+	url = https://github.com/Apacx-Foundation/taya-uma-ctf-adapter
+[submodule "lib/taya-conditional-tokens-contracts"]
+	path = lib/taya-conditional-tokens-contracts
+	url = https://github.com/Apacx-Foundation/taya-conditional-tokens-contracts

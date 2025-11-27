@@ -1,0 +1,23 @@
+{
+  "lib/forge-std": {
+    "tag": {
+      "name": "v1.12.0",
+      "rev": "7117c90c8cf6c68e5acce4f09a6b24715cea4de6"
+    }
+  },
+  "lib/taya-conditional-tokens-contracts": {
+    "rev": "a927b5a52cf9ace712bf1b5fe1d92bf76399e692"
+  },
+  "lib/taya-conditional-tokens-market-makers": {
+    "tag": {
+      "name": "v1.8.1",
+      "rev": "647b203cf68c42c734b1bff486d38918f7fd2e6d"
+    }
+  },
+  "lib/taya-uma-ctf-adapter": {
+    "branch": {
+      "name": "demo/test-adapter",
+      "rev": "bb3c5225231c6e9acbdebf66d1cebbaa31fc63ef"
+    }
+  }
+}

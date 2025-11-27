@@ -1,0 +1,70 @@
+[profile.default]
+# src ="node_modules/@gnosis.pm/conditional-tokens-contracts/contracts/"
+src = "src"
+libs = ["lib"]
+out = "out"
+solc = "0.8.15"
+ffi = true
+gas_reports = ["*"]
+optimizer_runs = 1000000
+fs_permissions = [
+    { access = "read", path = "./out/"},
+    { access = "read", path = "./out_ctf/"},
+    { access = "read", path = "./out_market/"},
+    { access = "read", path = "./config/"},
+    { access = "read-write", path = "./script/output/"},
+]
+remappings = []
+
+[profile.default.lint]
+lint_on_build = false
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[profile.ctf]
+src ="lib/taya-conditional-tokens-contracts/contracts"
+solc ="0.5.10"
+evm_version = "petersburg"
+optimizer = true
+optimizer_runs = 200
+libs = ["lib", "node_modules"]
+out = "out_ctf"
+script = "script_ctf"
+test = "test_ctf"
+allow_paths = ["lib", "../lib", "../../lib",  "../node_modules"]
+remappings = [
+    "openzeppelin-solidity/=node_modules/openzeppelin-solidity/",
+]
+fs_permissions = [
+    { access = "read", path = "./out/"},
+    { access = "read", path = "./out_ctf/"},
+    { access = "read", path = "./out_market/"},
+    { access = "read", path = "./config/"},
+    { access = "read", path = "./node_modules/"},
+    { access = "read-write", path = "./script/output/"},
+]
+
+[profile.market]
+src ="lib/taya-conditional-tokens-market-makers/contracts"
+solc ="0.5.10"
+evm_version = "petersburg"
+optimizer = true
+optimizer_runs = 200
+libs = ["lib","node_modules"]
+out = "out_market"
+script = "script_market"
+test = "test_market"
+allow_paths = ["lib", "../lib", "../../lib", "node_modules", "../node_modules"]
+remappings = [
+    "conditional-tokens-contracts/=lib/taya-conditional-tokens-contracts/contracts/",
+    "openzeppelin-solidity/=node_modules/openzeppelin-solidity/",
+    "util-contracts/=node_modules/@gnosis.pm/util-contracts/",
+    "canonical-weth/=node_modules/canonical-weth/",
+]
+fs_permissions = [
+    { access = "read", path = "./out/"},
+    { access = "read", path = "./out_ctf/"},
+    { access = "read", path = "./out_market/"},
+    { access = "read", path = "./config/"},
+    { access = "read", path = "./node_modules/"},
+    { access = "read-write", path = "./script/output/"},
+]
