@@ -56,7 +56,7 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --chain-id "$CHAIN_ID" \
     --etherscan-api-key "$ETHERSCAN_API_KEY" \
     --compiler-version "v0.5.10+commit.5a6ea5b1" \
-    --num-of-optimizations 1000000 \
+    --num-of-optimizations 200 \
     --evm-version "petersburg" \
     --watch \
     "$CTF_ADDRESS" \
@@ -70,7 +70,7 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --chain-id "$CHAIN_ID" \
     --etherscan-api-key "$ETHERSCAN_API_KEY" \
     --compiler-version "v0.5.10+commit.5a6ea5b1" \
-    --num-of-optimizations 1000000 \
+    --num-of-optimizations 200 \
     --evm-version "petersburg" \
     --watch \
     "$FPMM_FACTORY_ADDRESS" \
