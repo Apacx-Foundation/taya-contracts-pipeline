@@ -2,7 +2,8 @@
   "admins": ["0x374334e22B5d6898AF77AC4d907d8b9Aca206605"],
   "tokens": {
     "pht": "0xe75220cB014Dfb2D354bb59be26d7458bB8d0706",
-    "usdc": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    "usdc": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "usdt": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
   },
   "uma": {
     "finder": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",

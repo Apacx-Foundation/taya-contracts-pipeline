@@ -20,6 +20,9 @@ export const TokensConfigSchema = z.object({
   usdc: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  usdt: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
 });
 
 export const NetworkConfigSchema = z.object({

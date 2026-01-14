@@ -6,7 +6,8 @@
   ],
   "tokens": {
     "pht": "0xbfC1b782072467A05Fbf45101EC8CbDF779Fb02a",
-    "usdc": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+    "usdc": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+    "usdt": "0xc334aa6a0263c834BEB79f783798707D4eB8F688"
   },
   "uma": {
     "finder": "0xf4C48eDAd256326086AEfbd1A53e1896815F8f13",
