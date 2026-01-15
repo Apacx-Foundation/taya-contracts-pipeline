@@ -25,6 +25,7 @@ forge script ./script/DeployAdapterDemo.s.sol \
 
 CTF_ADDRESS=$(jq -r '.ctf' "$OUTPUT_PATH")
 ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
+ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
 FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
 FINDER_ADDRESS=$(jq -r '.uma.finder' "$NETWORK_CONFIG_PATH")
 OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
@@ -47,6 +48,17 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --root "lib/taya-uma-ctf-adapter" \
     --watch \
     "src/UmaCtfAdapterDemo.sol:UmaCtfAdapterDemo"
+  
+  FOUNDRY_PROFILE=default
+  forge verify-contract \
+    --chain-id "$CHAIN_ID" \
+    --compiler-version "0.8.15" \
+    --constructor-args "$(cast abi-encode "constructor(address)" "$ADAPTER_ADDRESS")" \
+    --etherscan-api-key "$ETHERSCAN_API_KEY" \
+    "$ADAPTER_GATE_ADDRESS" \
+    --root "." \
+    --watch \
+    "src/UmaCtfAdapterGate.sol:UmaCtfAdapterGate"
 
   FOUNDRY_PROFILE=ctf \
   FOUNDRY_LIBS='["lib"]' \

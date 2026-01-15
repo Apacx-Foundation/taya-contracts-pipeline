@@ -45,6 +45,9 @@ export const DeploymentOutputSchema = z.object({
   fpmmFactory: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  umaAdapterGate: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
 });
 
 export type NetworkConfig = z.infer<typeof NetworkConfigSchema>;

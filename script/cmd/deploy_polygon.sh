@@ -47,6 +47,17 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --root "lib/taya-uma-ctf-adapter" \
     --watch \
     "src/UmaCtfAdapterDemo.sol:UmaCtfAdapterDemo"
+    
+  FOUNDRY_PROFILE=default
+  forge verify-contract \
+    --chain-id "$CHAIN_ID" \
+    --compiler-version "0.8.15" \
+    --constructor-args "$(cast abi-encode "constructor(address)" "$ADAPTER_ADDRESS")" \
+    --etherscan-api-key "$ETHERSCAN_API_KEY" \
+    "$ADAPTER_GATE_ADDRESS" \
+    --root "." \
+    --watch \
+    "src/UmaCtfAdapterGate.sol:UmaCtfAdapterGate"
 
   FOUNDRY_PROFILE=ctf \
   FOUNDRY_LIBS='["lib"]' \

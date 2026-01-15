@@ -2,6 +2,7 @@
 # src ="node_modules/@gnosis.pm/conditional-tokens-contracts/contracts/"
 src = "src"
 libs = ["lib"]
+allow_paths = ["lib"]
 out = "out"
 solc = "0.8.15"
 ffi = true

@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 } from "forge-std/console2.sol";
 
 import { UmaCtfAdapterDemo } from "taya-uma-ctf-adapter/UmaCtfAdapterDemo.sol";
+import { UmaCtfAdapterGate } from "../src/UmaCtfAdapterGate.sol";
 import { DeploymentHelper, DeployResult, DeployParams } from "./DeploymentHelper.sol";
 
 contract DeployAdapterDemo is Script {
@@ -24,8 +25,10 @@ contract DeployAdapterDemo is Script {
         address fpmmFactory = vm.deployCode("out_market/FPMMDeterministicFactory.sol/FPMMDeterministicFactory.json");
 
         UmaCtfAdapterDemo ctfAdapter = new UmaCtfAdapterDemo(ctf, finder, oo);
+        UmaCtfAdapterGate ctfAdapterGate = new UmaCtfAdapterGate(address(ctfAdapter));
 
-        // Add admin auth to the Admin address
+        // Add admin auth to the Admin addresses and the gate
+        ctfAdapter.addAdmin(address(ctfAdapterGate));
         bool isDeployerAdmin = false;
         for (uint256 i = 0; i < admins.length; i++) {
             ctfAdapter.addAdmin(admins[i]);
@@ -37,20 +40,33 @@ contract DeployAdapterDemo is Script {
 
         // Verify
         for (uint256 i = 0; i < admins.length; i++) {
-            _verifyStatePostDeployment(admins[i], ctf, address(ctfAdapter));
+            _verifyStatePostDeployment(admins[i], ctf, address(ctfAdapter), address(ctfAdapterGate));
         }
-        result = DeployResult({ ctf: ctf, umaCtfAdapter: address(ctfAdapter), fpmmFactory: fpmmFactory });
+        result = DeployResult({
+            ctf: ctf,
+            umaCtfAdapter: address(ctfAdapter),
+            umaCtfAdapterGate: address(ctfAdapterGate),
+            fpmmFactory: fpmmFactory
+        });
 
         console2.log("ConditionalTokens deployed at:", result.ctf);
         console2.log("UmaCtfAdapterDemo deployed at:", result.umaCtfAdapter);
+        console2.log("UmaCtfAdapterGate deployed at:", result.umaCtfAdapterGate);
         console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
     }
 
-    function _verifyStatePostDeployment(address admin, address ctf, address adapter) internal view returns (bool) {
+    function _verifyStatePostDeployment(address admin, address ctf, address adapter, address gate)
+        internal
+        view
+        returns (bool)
+    {
         UmaCtfAdapterDemo ctfAdapter = UmaCtfAdapterDemo(adapter);
+        UmaCtfAdapterGate ctfAdapterGate = UmaCtfAdapterGate(gate);
 
         if (!ctfAdapter.isAdmin(admin)) revert("Adapter admin not set");
+        if (!ctfAdapter.isAdmin(gate)) revert("Adapter gate admin not set");
         if (address(ctfAdapter.ctf()) != ctf) revert("Unexpected ConditionalTokensFramework set on adapter");
+        if (address(ctfAdapterGate.adapter()) != adapter) revert("Unexpected adapter set on gate");
 
         return true;
     }

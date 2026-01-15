@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Script } from "forge-std/Script.sol";
-import { CommonBase } from "forge-std/Base.sol";
-import { stdJson } from "forge-std/StdJson.sol";
+import {Script} from "forge-std/Script.sol";
+import {CommonBase} from "forge-std/Base.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 
 struct DeployResult {
     address ctf;
     address umaCtfAdapter;
+    address umaCtfAdapterGate;
     address fpmmFactory;
 }
 
@@ -42,7 +43,8 @@ contract DeploymentHelper is CommonBase {
         string memory artifacts = "artifacts";
         artifacts.serialize("ctf", result.ctf);
         artifacts.serialize("fpmmFactory", result.fpmmFactory);
-        string memory json = artifacts.serialize("umaAdapter", result.umaCtfAdapter);
+        artifacts.serialize("umaAdapter", result.umaCtfAdapter);
+        string memory json = artifacts.serialize("umaAdapterGate", result.umaCtfAdapterGate);
         json.write(path);
     }
 }
