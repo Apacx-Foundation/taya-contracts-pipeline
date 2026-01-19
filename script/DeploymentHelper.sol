@@ -10,6 +10,7 @@ struct DeployResult {
     address umaCtfAdapter;
     address umaCtfAdapterGate;
     address fpmmFactory;
+    address lmsrFactory;
 }
 
 struct DeployParams {
@@ -43,6 +44,7 @@ contract DeploymentHelper is CommonBase {
         string memory artifacts = "artifacts";
         artifacts.serialize("ctf", result.ctf);
         artifacts.serialize("fpmmFactory", result.fpmmFactory);
+        artifacts.serialize("lmsrFactory", result.lmsrFactory);
         artifacts.serialize("umaAdapter", result.umaCtfAdapter);
         string memory json = artifacts.serialize("umaAdapterGate", result.umaCtfAdapterGate);
         json.write(path);
