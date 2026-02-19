@@ -7,6 +7,7 @@ import {CappedLMSRMarketMakerFactory} from "../src_market_ext/CappedLMSRMarketMa
 import {LMSRMarketMaker} from "market-makers/LMSRMarketMaker.sol";
 import {LMSRMarketMakerFactory} from "market-makers/LMSRMarketMakerFactory.sol";
 import {Whitelist} from "market-makers/Whitelist.sol";
+import {WhitelistFactory} from "../src_market_ext/WhitelistFactory.sol";
 import {Fixed192x64Math} from "@gnosis.pm/util-contracts/contracts/Fixed192x64Math.sol";
 
 /// @title Test collateral token for CappedLMSR tests
@@ -309,6 +310,26 @@ contract CappedLMSRMarketMakerTest is TestUtils {
 
         // Should succeed
         mm.trade(amounts, 0);
+    }
+
+    function test_whitelistFactoryIntegration() public {
+        // Create whitelist via factory with this contract pre-whitelisted
+        WhitelistFactory wlFactory = new WhitelistFactory();
+        address[] memory users = new address[](1);
+        users[0] = address(this);
+        Whitelist wl = wlFactory.createWhitelistWithUsers(users);
+
+        // Use the factory-created whitelist with a market
+        CappedLMSRMarketMaker mm = createBinaryMarketWithWhitelist(1000 * ONE, wl);
+        collateral.approve(address(mm), uint256(-1));
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        // Trade should succeed (we're whitelisted)
+        mm.trade(amounts, 0);
+        assertTrue(mm.cumulativeNetCost() > 0, "trade should have occurred");
     }
 
     // ----------------------------------------------------------------
