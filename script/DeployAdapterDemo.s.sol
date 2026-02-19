@@ -52,7 +52,8 @@ contract DeployAdapterDemo is Script {
             umaCtfAdapterGate: address(ctfAdapterGate),
             fpmmFactory: fpmmFactory,
             lmsrFactory: lmsrFactory,
-            cappedLmsrFactory: cappedLmsrFactory
+            cappedLmsrFactory: cappedLmsrFactory,
+            deployedAtBlock: block.number
         });
 
         console2.log("ConditionalTokens deployed at:", result.ctf);
