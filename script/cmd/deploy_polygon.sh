@@ -14,6 +14,7 @@ set +a
 forge clean
 FOUNDRY_PROFILE=ctf forge build --force
 FOUNDRY_PROFILE=market forge build --force --silent
+FOUNDRY_PROFILE=market_ext forge build --force --silent
 forge build --force
 
 # Deploy Fixed192x64Math library first (required by LMSRMarketMaker)
@@ -39,6 +40,10 @@ echo "Rebuilding market contracts with library linked..."
 FOUNDRY_PROFILE=market forge build --force \
   --libraries "${FIXED_MATH_LIB_PATH}:${FIXED_MATH_LIB_ADDRESS}"
 
+echo "Rebuilding market_ext contracts with library linked..."
+FOUNDRY_PROFILE=market_ext forge build --force \
+  --libraries "${FIXED_MATH_LIB_PATH}:${FIXED_MATH_LIB_ADDRESS}"
+
 FOUNDRY_PROFILE=default
 forge script ./script/DeployAdapterDemo.s.sol \
   --rpc-url "$POLYGON_RPC_URL" \
@@ -50,15 +55,17 @@ CTF_ADDRESS=$(jq -r '.ctf' "$OUTPUT_PATH")
 ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
 FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
 LMSR_FACTORY_ADDRESS=$(jq -r '.lmsrFactory' "$OUTPUT_PATH")
+CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
 FINDER_ADDRESS=$(jq -r '.uma.finder' "$NETWORK_CONFIG_PATH")
 OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
 echo "✓ Deployments"
-echo "  ConditionalTokens:        ${CTF_ADDRESS}"
-echo "  UmaCtfAdapterDemo:        ${ADAPTER_ADDRESS}"
-echo "  FPMMDeterministicFactory: ${FPMM_FACTORY_ADDRESS}"
-echo "  Fixed192x64Math:          ${FIXED_MATH_LIB_ADDRESS}"
-echo "  LMSRMarketMakerFactory:   ${LMSR_FACTORY_ADDRESS}"
+echo "  ConditionalTokens:              ${CTF_ADDRESS}"
+echo "  UmaCtfAdapterDemo:              ${ADAPTER_ADDRESS}"
+echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
+echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
+echo "  LMSRMarketMakerFactory:         ${LMSR_FACTORY_ADDRESS}"
+echo "  CappedLMSRMarketMakerFactory:   ${CAPPED_LMSR_FACTORY_ADDRESS}"
 
 if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
   CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
@@ -141,6 +148,21 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --watch \
     "$LMSR_FACTORY_ADDRESS" \
     "lib/taya-conditional-tokens-market-makers/contracts/LMSRMarketMakerFactory.sol:LMSRMarketMakerFactory"
+
+  FOUNDRY_PROFILE=market_ext \
+  FOUNDRY_LIBS='["lib","node_modules"]' \
+  FOUNDRY_ALLOW_PATHS='["lib","../lib","../../lib", "../node_modules"]' \
+  FOUNDRY_REMAPPINGS='["market-makers/=lib/taya-conditional-tokens-market-makers/contracts/", "openzeppelin-solidity/=node_modules/openzeppelin-solidity/", "conditional-tokens-contracts/=lib/taya-conditional-tokens-contracts/contracts/", "util-contracts/=node_modules/@gnosis.pm/util-contracts/", "canonical-weth/=node_modules/canonical-weth/"]' \
+  forge verify-contract \
+    --chain-id "$CHAIN_ID" \
+    --etherscan-api-key "$ETHERSCAN_API_KEY" \
+    --compiler-version "v0.5.10+commit.5a6ea5b1" \
+    --num-of-optimizations 200 \
+    --evm-version "petersburg" \
+    --libraries "${FIXED_MATH_LIB_PATH}:${FIXED_MATH_LIB_ADDRESS}" \
+    --watch \
+    "$CAPPED_LMSR_FACTORY_ADDRESS" \
+    "src_market_ext/CappedLMSRMarketMakerFactory.sol:CappedLMSRMarketMakerFactory"
 else
   echo "⚠️  Skipping verification; ETHERSCAN_API_KEY is not set."
 fi

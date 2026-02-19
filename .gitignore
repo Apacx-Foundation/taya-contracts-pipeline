@@ -22,6 +22,7 @@ node_modules
 /out
 /out_ctf
 /out_market
+/out_market_ext
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
