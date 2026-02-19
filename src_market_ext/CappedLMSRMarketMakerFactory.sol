@@ -12,6 +12,7 @@ contract CappedLMSRMarketMakerData {
     address internal _owner;
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+
     bytes4 internal constant _INTERFACE_ID_ERC165 = 0x01ffc9a7;
     mapping(bytes4 => bool) internal _supportedInterfaces;
 
@@ -31,7 +32,7 @@ contract CappedLMSRMarketMakerData {
     uint256[] internal positionIds;
 
     // CappedLMSRMarketMaker specific
-    uint256 internal maxTxCostIncrease;
+    uint256 internal maxCostPerTx;
     uint256 internal lossUsed;
     int256 internal cumulativeNetCost;
 
@@ -51,7 +52,7 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
         bytes32[] conditionIds,
         uint64 fee,
         uint256 funding,
-        uint256 maxTxCostIncrease
+        uint256 maxCostPerTx
     );
 
     CappedLMSRMarketMaker public implementationMaster;
@@ -67,7 +68,7 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
             bytes32[] memory _conditionIds,
             uint64 _fee,
             Whitelist _whitelist,
-            uint256 _maxTxCostIncrease
+            uint256 _maxCostPerTx
         ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint64, Whitelist, uint256));
 
         _owner = msg.sender;
@@ -85,7 +86,7 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
         conditionIds = _conditionIds;
         fee = _fee;
         whitelist = _whitelist;
-        maxTxCostIncrease = _maxTxCostIncrease;
+        maxCostPerTx = _maxCostPerTx;
 
         atomicOutcomeSlotCount = 1;
         outcomeSlotCounts = new uint256[](conditionIds.length);
@@ -96,7 +97,6 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
         }
         require(atomicOutcomeSlotCount > 1, "conditions must be valid");
 
-        // b = funding (set via changeFunding after clone creation, like original LMSR)
         collectionIds = new bytes32[][](conditionIds.length);
         _recordCollectionIDsForAllConditions(conditionIds.length, bytes32(0));
 
@@ -129,14 +129,14 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
         uint64 fee,
         Whitelist whitelist,
         uint256 funding,
-        uint256 _maxTxCostIncrease
+        uint256 maxCostPerTx
     ) external returns (CappedLMSRMarketMaker cappedLMSRMarketMaker) {
         require(funding > 0, "funding must be positive");
 
         cappedLMSRMarketMaker = CappedLMSRMarketMaker(
             createClone(
                 address(implementationMaster),
-                abi.encode(pmSystem, collateralToken, conditionIds, fee, whitelist, _maxTxCostIncrease)
+                abi.encode(pmSystem, collateralToken, conditionIds, fee, whitelist, maxCostPerTx)
             )
         );
         collateralToken.transferFrom(msg.sender, address(this), funding);
@@ -145,7 +145,7 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
         cappedLMSRMarketMaker.resume();
         cappedLMSRMarketMaker.transferOwnership(msg.sender);
         emit CappedLMSRMarketMakerCreation(
-            msg.sender, cappedLMSRMarketMaker, pmSystem, collateralToken, conditionIds, fee, funding, _maxTxCostIncrease
+            msg.sender, cappedLMSRMarketMaker, pmSystem, collateralToken, conditionIds, fee, funding, maxCostPerTx
         );
     }
 }

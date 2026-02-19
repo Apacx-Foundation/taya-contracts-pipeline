@@ -211,10 +211,10 @@ contract CappedLMSRMarketMakerTest is TestUtils {
     }
 
     // ----------------------------------------------------------------
-    // maxTxCostIncrease
+    // maxCostPerTx
     // ----------------------------------------------------------------
 
-    function test_maxTxCostIncreaseRevertsOnExceed() public {
+    function test_maxCostPerTxRevertsOnExceed() public {
         uint256 funding = 1000 * ONE;
 
         int256[] memory amounts = new int256[](2);
@@ -224,14 +224,14 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         // --- Part 1: tiny cap blocks all positive-cost trades ---
         uint256 tinyCap = 1;
         CappedLMSRMarketMaker capped = createBinaryMarketWithCap(funding, tinyCap);
-        assertEq(capped.maxTxCostIncrease(), tinyCap, "maxTxCostIncrease not stored");
+        assertEq(capped.maxCostPerTx(), tinyCap, "maxCostPerTx not stored");
         collateral.approve(address(capped), uint256(-1));
 
         int256 cost = capped.calcNetCost(amounts);
         assertTrue(cost > int256(tinyCap), "test setup: cost should exceed tiny cap");
 
         (bool success,) = address(capped).call(abi.encodeWithSignature("trade(int256[],int256)", amounts, int256(0)));
-        assertTrue(!success, "should revert when cost exceeds maxTxCostIncrease");
+        assertTrue(!success, "should revert when cost exceeds maxCostPerTx");
 
         // --- Part 2: large cap allows trade ---
         uint256 largeCap = funding;
@@ -239,6 +239,14 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         collateral.approve(address(uncapped), uint256(-1));
 
         uncapped.trade(amounts, 0);
+    }
+
+    function test_changeMaxCostPerTx() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        assertEq(mm.maxCostPerTx(), 0, "maxCostPerTx should be 0");
+        mm.pause();
+        mm.changeMaxCostPerTx(1000 * ONE);
+        assertEq(mm.maxCostPerTx(), 1000 * ONE, "maxCostPerTx should be 1000 * ONE");
     }
 
     // ----------------------------------------------------------------
