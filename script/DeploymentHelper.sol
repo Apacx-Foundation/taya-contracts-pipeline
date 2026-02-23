@@ -11,6 +11,9 @@ struct DeployResult {
     address umaCtfAdapterGate;
     address fpmmFactory;
     address lmsrFactory;
+    address cappedLmsrFactory;
+    address whitelistFactory;
+    uint256 deployedAtBlock;
 }
 
 struct DeployParams {
@@ -45,8 +48,11 @@ contract DeploymentHelper is CommonBase {
         artifacts.serialize("ctf", result.ctf);
         artifacts.serialize("fpmmFactory", result.fpmmFactory);
         artifacts.serialize("lmsrFactory", result.lmsrFactory);
+        artifacts.serialize("cappedLmsrFactory", result.cappedLmsrFactory);
+        artifacts.serialize("whitelistFactory", result.whitelistFactory);
         artifacts.serialize("umaAdapter", result.umaCtfAdapter);
-        string memory json = artifacts.serialize("umaAdapterGate", result.umaCtfAdapterGate);
+        artifacts.serialize("umaAdapterGate", result.umaCtfAdapterGate);
+        string memory json = artifacts.serialize("deployedAtBlock", result.deployedAtBlock);
         json.write(path);
     }
 }

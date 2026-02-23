@@ -25,6 +25,9 @@ contract DeployAdapterDemo is Script {
         address fpmmFactory = vm.deployCode("out_market/FPMMDeterministicFactory.sol/FPMMDeterministicFactory.json");
         // Note: LMSRMarketMakerFactory requires Fixed192x64Math library to be pre-linked via --libraries flag
         address lmsrFactory = vm.deployCode("out_market/LMSRMarketMakerFactory.sol/LMSRMarketMakerFactory.json");
+        // Note: CappedLMSRMarketMakerFactory also requires Fixed192x64Math library pre-linked
+        address cappedLmsrFactory = vm.deployCode("out_market_ext/CappedLMSRMarketMakerFactory.sol/CappedLMSRMarketMakerFactory.json");
+        address whitelistFactory = vm.deployCode("out_market_ext/WhitelistFactory.sol/WhitelistFactory.json");
 
         UmaCtfAdapterDemo ctfAdapter = new UmaCtfAdapterDemo(ctf, finder, oo);
         UmaCtfAdapterGate ctfAdapterGate = new UmaCtfAdapterGate(address(ctfAdapter));
@@ -49,7 +52,10 @@ contract DeployAdapterDemo is Script {
             umaCtfAdapter: address(ctfAdapter),
             umaCtfAdapterGate: address(ctfAdapterGate),
             fpmmFactory: fpmmFactory,
-            lmsrFactory: lmsrFactory
+            lmsrFactory: lmsrFactory,
+            cappedLmsrFactory: cappedLmsrFactory,
+            whitelistFactory: whitelistFactory,
+            deployedAtBlock: block.number
         });
 
         console2.log("ConditionalTokens deployed at:", result.ctf);
@@ -57,6 +63,8 @@ contract DeployAdapterDemo is Script {
         console2.log("UmaCtfAdapterGate deployed at:", result.umaCtfAdapterGate);
         console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
         console2.log("LMSRMarketMakerFactory deployed at:", result.lmsrFactory);
+        console2.log("CappedLMSRMarketMakerFactory deployed at:", result.cappedLmsrFactory);
+        console2.log("WhitelistFactory deployed at:", result.whitelistFactory);
     }
 
     function _verifyStatePostDeployment(address admin, address ctf, address adapter, address gate)

@@ -12,6 +12,7 @@ fs_permissions = [
     { access = "read", path = "./out/"},
     { access = "read", path = "./out_ctf/"},
     { access = "read", path = "./out_market/"},
+    { access = "read", path = "./out_market_ext/"},
     { access = "read", path = "./config/"},
     { access = "read-write", path = "./script/output/"},
 ]
@@ -39,6 +40,7 @@ fs_permissions = [
     { access = "read", path = "./out/"},
     { access = "read", path = "./out_ctf/"},
     { access = "read", path = "./out_market/"},
+    { access = "read", path = "./out_market_ext/"},
     { access = "read", path = "./config/"},
     { access = "read", path = "./node_modules/"},
     { access = "read-write", path = "./script/output/"},
@@ -65,6 +67,35 @@ fs_permissions = [
     { access = "read", path = "./out/"},
     { access = "read", path = "./out_ctf/"},
     { access = "read", path = "./out_market/"},
+    { access = "read", path = "./out_market_ext/"},
+    { access = "read", path = "./config/"},
+    { access = "read", path = "./node_modules/"},
+    { access = "read-write", path = "./script/output/"},
+]
+
+[profile.market_ext]
+src = "src_market_ext"
+solc = "0.5.10"
+evm_version = "petersburg"
+optimizer = true
+optimizer_runs = 200
+libs = ["lib", "node_modules"]
+out = "out_market_ext"
+script = "script_market_ext"
+test = "test_market_ext"
+allow_paths = ["lib", "../lib", "../../lib", "node_modules", "../node_modules"]
+remappings = [
+    "market-makers/=lib/taya-conditional-tokens-market-makers/contracts/",
+    "conditional-tokens-contracts/=lib/taya-conditional-tokens-contracts/contracts/",
+    "openzeppelin-solidity/=node_modules/openzeppelin-solidity/",
+    "util-contracts/=node_modules/@gnosis.pm/util-contracts/",
+    "canonical-weth/=node_modules/canonical-weth/",
+]
+fs_permissions = [
+    { access = "read", path = "./out/"},
+    { access = "read", path = "./out_ctf/"},
+    { access = "read", path = "./out_market/"},
+    { access = "read", path = "./out_market_ext/"},
     { access = "read", path = "./config/"},
     { access = "read", path = "./node_modules/"},
     { access = "read-write", path = "./script/output/"},

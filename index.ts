@@ -48,9 +48,16 @@ export const DeploymentOutputSchema = z.object({
   lmsrFactory: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  cappedLmsrFactory: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   umaAdapterGate: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  whitelistFactory: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  deployedAtBlock: z.number() as z.ZodType<number>,
 });
 
 export type NetworkConfig = z.infer<typeof NetworkConfigSchema>;
