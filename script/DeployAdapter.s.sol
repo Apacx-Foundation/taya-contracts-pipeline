@@ -6,6 +6,7 @@ import {console2} from "forge-std/console2.sol";
 
 import {UmaCtfAdapter} from "lib/taya-uma-ctf-adapter/src/UmaCtfAdapter.sol";
 import {UmaCtfAdapterGate} from "../src/UmaCtfAdapterGate.sol";
+import {SurchargeAuditLogger} from "../src/SurchargeAuditLogger.sol";
 import {DeploymentHelper, DeployResult, DeployParams} from "./DeploymentHelper.sol";
 
 contract DeployAdapter is Script {
@@ -28,6 +29,8 @@ contract DeployAdapter is Script {
         // Note: CappedLMSRMarketMakerFactory also requires Fixed192x64Math library pre-linked
         address cappedLmsrFactory = vm.deployCode("out_market_ext/CappedLMSRMarketMakerFactory.sol/CappedLMSRMarketMakerFactory.json");
         address whitelistFactory = vm.deployCode("out_market_ext/WhitelistFactory.sol/WhitelistFactory.json");
+
+        SurchargeAuditLogger surchargeAuditLogger = new SurchargeAuditLogger();
 
         UmaCtfAdapter ctfAdapter = new UmaCtfAdapter(ctf, finder, oo);
         UmaCtfAdapterGate ctfAdapterGate = new UmaCtfAdapterGate(address(ctfAdapter));
@@ -55,6 +58,7 @@ contract DeployAdapter is Script {
             lmsrFactory: lmsrFactory,
             cappedLmsrFactory: cappedLmsrFactory,
             whitelistFactory: whitelistFactory,
+            surchargeAuditLogger: address(surchargeAuditLogger),
             deployedAtBlock: block.number
         });
 
@@ -64,6 +68,7 @@ contract DeployAdapter is Script {
         console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
         console2.log("LMSRMarketMakerFactory deployed at:", result.lmsrFactory);
         console2.log("CappedLMSRMarketMakerFactory deployed at:", result.cappedLmsrFactory);
+        console2.log("SurchargeAuditLogger deployed at:", result.surchargeAuditLogger);
         console2.log("WhitelistFactory deployed at:", result.whitelistFactory);
     }
 

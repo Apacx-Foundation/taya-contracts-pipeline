@@ -58,6 +58,7 @@ FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
 LMSR_FACTORY_ADDRESS=$(jq -r '.lmsrFactory' "$OUTPUT_PATH")
 CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
 WHITELIST_FACTORY_ADDRESS=$(jq -r '.whitelistFactory' "$OUTPUT_PATH")
+SURCHARGE_AUDIT_LOGGER_ADDRESS=$(jq -r '.surchargeAuditLogger' "$OUTPUT_PATH")
 FINDER_ADDRESS=$(jq -r '.uma.finder' "$NETWORK_CONFIG_PATH")
 OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
@@ -69,6 +70,7 @@ echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
 echo "  LMSRMarketMakerFactory:         ${LMSR_FACTORY_ADDRESS}"
 echo "  CappedLMSRMarketMakerFactory:   ${CAPPED_LMSR_FACTORY_ADDRESS}"
 echo "  WhitelistFactory:               ${WHITELIST_FACTORY_ADDRESS}"
+echo "  SurchargeAuditLogger:           ${SURCHARGE_AUDIT_LOGGER_ADDRESS}"
 
 if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
   CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
@@ -180,6 +182,15 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --watch \
     "$WHITELIST_FACTORY_ADDRESS" \
     "src_market_ext/WhitelistFactory.sol:WhitelistFactory"
+
+  FOUNDRY_PROFILE=default
+  forge verify-contract \
+    --chain-id "$CHAIN_ID" \
+    --compiler-version "0.8.15" \
+    --etherscan-api-key "$ETHERSCAN_API_KEY" \
+    --watch \
+    "$SURCHARGE_AUDIT_LOGGER_ADDRESS" \
+    "src/SurchargeAuditLogger.sol:SurchargeAuditLogger"
 else
   echo "⚠️  Skipping verification; ETHERSCAN_API_KEY is not set."
 fi
