@@ -3,7 +3,7 @@ pragma solidity ^0.5.1;
 import {ERC20Mintable} from "openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
 import {ConditionalTokens} from "@gnosis.pm/conditional-tokens-contracts/contracts/ConditionalTokens.sol";
 import {CappedLMSRMarketMaker} from "../src_market_ext/CappedLMSRMarketMaker.sol";
-import {CappedLMSRMarketMakerFactory} from "../src_market_ext/CappedLMSRMarketMakerFactory.sol";
+import {CappedLMSRDeterministicFactory} from "../src_market_ext/CappedLMSRDeterministicFactory.sol";
 import {LMSRMarketMaker} from "market-makers/LMSRMarketMaker.sol";
 import {LMSRMarketMakerFactory} from "market-makers/LMSRMarketMakerFactory.sol";
 import {Whitelist} from "market-makers/Whitelist.sol";
@@ -76,7 +76,8 @@ contract CappedLMSRMarketMakerTest is TestUtils {
     // Test contracts
     TestCollateral public collateral;
     ConditionalTokens public ctf;
-    CappedLMSRMarketMakerFactory public factory;
+    CappedLMSRDeterministicFactory public factory;
+    uint256 internal saltNonce;
     LMSRMarketMakerFactory public lmsrFactory;
 
     // Test oracle for condition creation
@@ -91,7 +92,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
     constructor() public {
         collateral = new TestCollateral();
         ctf = new ConditionalTokens();
-        factory = new CappedLMSRMarketMakerFactory();
+        factory = new CappedLMSRDeterministicFactory();
         lmsrFactory = new LMSRMarketMakerFactory();
         oracle = address(this);
 
@@ -134,7 +135,8 @@ contract CappedLMSRMarketMakerTest is TestUtils {
 
         collateral.approve(address(factory), funding);
 
-        return factory.createCappedLMSRMarketMaker(
+        return factory.create2CappedLMSRMarketMaker(
+            saltNonce++,
             ctf,
             collateral,
             conditionIds,
@@ -196,7 +198,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         collateral.approve(address(lmsrFactory), uint256(-1));
 
         CappedLMSRMarketMaker capped =
-            factory.createCappedLMSRMarketMaker(ctf, collateral, conditionIds, 0, Whitelist(0), funding, 0);
+            factory.create2CappedLMSRMarketMaker(saltNonce++, ctf, collateral, conditionIds, 0, Whitelist(0), funding, 0);
 
         LMSRMarketMaker lmsr =
             lmsrFactory.createLMSRMarketMaker(ctf, collateral, conditionIds, 0, Whitelist(0), funding);
@@ -265,7 +267,8 @@ contract CappedLMSRMarketMakerTest is TestUtils {
 
         collateral.approve(address(factory), funding);
 
-        return factory.createCappedLMSRMarketMaker(
+        return factory.create2CappedLMSRMarketMaker(
+            saltNonce++,
             ctf,
             collateral,
             conditionIds,
@@ -274,6 +277,18 @@ contract CappedLMSRMarketMakerTest is TestUtils {
             funding,
             0 // no tx cap
         );
+    }
+
+    /// @notice Helper to prepare two binary conditions and return both IDs.
+    function createTwoBinaryConditions(uint256 funding) internal returns (bytes32[] memory conditionIds) {
+        bytes32 q1 = keccak256(abi.encodePacked(block.timestamp, funding, "multi-cond-1"));
+        bytes32 q2 = keccak256(abi.encodePacked(block.timestamp, funding, "multi-cond-2"));
+        ctf.prepareCondition(oracle, q1, 2);
+        ctf.prepareCondition(oracle, q2, 2);
+
+        conditionIds = new bytes32[](2);
+        conditionIds[0] = ctf.getConditionId(oracle, q1, 2);
+        conditionIds[1] = ctf.getConditionId(oracle, q2, 2);
     }
 
     function test_whitelistBlocksNonWhitelistedTrader() public {
@@ -375,6 +390,154 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         (bool okPause,) = address(mm).call(abi.encodeWithSignature("pause()"));
         assertTrue(!okPause, "pause should revert for non-owner");
     }
+
+    // ----------------------------------------------------------------
+    // Storage slot alignment
+    // ----------------------------------------------------------------
+
+    /// @notice Verify all storage-backed fields read correctly through the clone proxy.
+    ///         If the Data contract layout diverges from the implementation inheritance
+    ///         chain (Ownable → ERC165 → MarketMaker → LMSRMarketMaker → CappedLMSRMarketMaker),
+    ///         any of these getter checks will return garbage and fail.
+    function test_storageSlotAlignment() public {
+        uint256 funding = 1000 * ONE;
+        uint256 maxCap = 500 * ONE;
+
+        Whitelist wl = new Whitelist();
+        address[] memory users = new address[](1);
+        users[0] = address(this);
+        wl.addToWhitelist(users);
+
+        bytes32 questionId = keccak256(abi.encodePacked(block.timestamp, funding, "slot-check"));
+        ctf.prepareCondition(oracle, questionId, 2);
+        bytes32 conditionId = ctf.getConditionId(oracle, questionId, 2);
+
+        bytes32[] memory conditionIds = new bytes32[](1);
+        conditionIds[0] = conditionId;
+
+        collateral.approve(address(factory), funding);
+
+        CappedLMSRMarketMaker mm = factory.create2CappedLMSRMarketMaker(
+            saltNonce++, ctf, collateral, conditionIds, 0, wl, funding, maxCap
+        );
+
+        {
+            // --- Ownable slot ---
+            assertTrue(mm.owner() == address(this), "slot: owner");
+
+            // --- MarketMaker slots ---
+            assertTrue(address(mm.pmSystem()) == address(ctf), "slot: pmSystem");
+            assertTrue(address(mm.collateralToken()) == address(collateral), "slot: collateralToken");
+            assertTrue(mm.conditionIds(0) == conditionId, "slot: conditionIds[0]");
+            assertEq(mm.atomicOutcomeSlotCount(), 2, "slot: atomicOutcomeSlotCount");
+            assertEq(uint256(mm.fee()), 0, "slot: fee");
+            assertEq(mm.funding(), funding, "slot: funding");
+            assertEq(uint256(mm.stage()), 0, "slot: stage (Running=0)");
+            assertTrue(address(mm.whitelist()) == address(wl), "slot: whitelist");
+        }
+
+        // --- CappedLMSRMarketMaker slots (pre-trade) ---
+        assertEq(mm.maxCostPerTx(), maxCap, "slot: maxCostPerTx");
+        assertEq(mm.lossUsed(), 0, "slot: lossUsed init");
+        assertTrue(mm.cumulativeNetCost() == 0, "slot: cumulativeNetCost init");
+
+        // --- Mutate CappedLMSR-specific state via a trade ---
+        collateral.approve(address(mm), uint256(-1));
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+        int256 cost = mm.trade(amounts, 0);
+
+        // --- Mutate Fee & Pause ---
+        {
+            uint64 newFee = 211;
+            mm.pause();
+            mm.changeFee(newFee);
+            assertEq(mm.fee(), newFee, "slot: fee post-change");
+            mm.changeFee(0);
+            mm.resume();
+        }
+
+        assertTrue(cost > 0, "trade should have positive cost");
+        assertTrue(mm.cumulativeNetCost() == cost, "slot: cumulativeNetCost post-trade");
+        assertEq(mm.lossUsed(), uint256(cost), "slot: lossUsed post-trade");
+
+        // --- Sell back, verify cumulativeNetCost decreases but lossUsed stays (high-water mark) ---
+        ctf.setApprovalForAll(address(mm), true);
+        amounts[0] = -int256(5 * ONE);
+        amounts[1] = 0;
+        int256 sellCost = mm.trade(amounts, 0);
+        assertTrue(sellCost < 0, "sell should return collateral");
+        assertTrue(mm.cumulativeNetCost() < cost, "cumulativeNetCost should decrease after sell");
+        assertEq(mm.lossUsed(), uint256(cost), "slot: lossUsed should not decrease (high-water mark)");
+
+        // --- Verify MarketMaker state still intact after trades ---
+        assertTrue(address(mm.pmSystem()) == address(ctf), "slot: pmSystem post-trade");
+        assertEq(mm.funding(), funding, "slot: funding post-trade");
+        assertTrue(address(mm.whitelist()) == address(wl), "slot: whitelist post-trade");
+        assertEq(mm.maxCostPerTx(), maxCap, "slot: maxCostPerTx post-trade");
+    }
+
+    /// @notice Multi-condition smoke test for storage + trading path.
+    ///         Creates 2 binary conditions (4 atomic outcomes) and verifies
+    ///         condition array slots, outcome count, and buy/sell accounting.
+    function test_multiConditionStorageAndTrading() public {
+        uint256 funding = 2000 * ONE;
+        uint256 maxCap = 1500 * ONE;
+
+        Whitelist wl = new Whitelist();
+        {
+            address[] memory users = new address[](1);
+            users[0] = address(this);
+            wl.addToWhitelist(users);
+        }
+
+        bytes32[] memory conditionIds = createTwoBinaryConditions(funding);
+
+        collateral.approve(address(factory), funding);
+        CappedLMSRMarketMaker mm = factory.create2CappedLMSRMarketMaker(
+            saltNonce++, ctf, collateral, conditionIds, 0, wl, funding, maxCap
+        );
+
+        // Validate multi-condition storage-backed fields.
+        assertTrue(mm.conditionIds(0) == conditionIds[0], "multi: conditionIds[0]");
+        assertTrue(mm.conditionIds(1) == conditionIds[1], "multi: conditionIds[1]");
+        assertEq(mm.atomicOutcomeSlotCount(), 4, "multi: atomicOutcomeSlotCount");
+        assertEq(mm.funding(), funding, "multi: funding");
+        assertEq(mm.maxCostPerTx(), maxCap, "multi: maxCostPerTx");
+
+        // Prices across 4 atomic outcomes should still sum to ~1.
+        uint256 sum =
+            mm.calcMarginalPrice(0) + mm.calcMarginalPrice(1) + mm.calcMarginalPrice(2) + mm.calcMarginalPrice(3);
+        uint256 diff = sum > ONE ? sum - ONE : ONE - sum;
+        assertTrue(diff <= ONE / 10000, "multi: prices do not sum to ONE");
+
+        collateral.approve(address(mm), uint256(-1));
+
+        int256[] memory amounts = new int256[](4);
+        amounts[0] = int256(8 * ONE);
+        amounts[1] = 0;
+        amounts[2] = 0;
+        amounts[3] = 0;
+        int256 buyCost = mm.trade(amounts, 0);
+        assertTrue(buyCost > 0, "multi: buy should cost collateral");
+        assertTrue(mm.cumulativeNetCost() == buyCost, "multi: cumulativeNetCost post-buy");
+        assertEq(mm.lossUsed(), uint256(buyCost), "multi: lossUsed post-buy");
+
+        ctf.setApprovalForAll(address(mm), true);
+        amounts[0] = -int256(3 * ONE);
+        amounts[1] = 0;
+        amounts[2] = 0;
+        amounts[3] = 0;
+        int256 sellCost = mm.trade(amounts, 0);
+        assertTrue(sellCost < 0, "multi: sell should return collateral");
+        assertTrue(mm.cumulativeNetCost() == buyCost + sellCost, "multi: cumulativeNetCost post-sell");
+        assertEq(mm.lossUsed(), uint256(buyCost), "multi: lossUsed high-water mark");
+    }
+
+    // ----------------------------------------------------------------
+    // Funding management
+    // ----------------------------------------------------------------
 
     function test_changeFundingOnlyWhenPaused() public {
         CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);

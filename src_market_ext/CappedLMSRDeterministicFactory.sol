@@ -3,50 +3,22 @@ pragma solidity ^0.5.1;
 import {IERC20} from "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import {ConditionalTokens} from "@gnosis.pm/conditional-tokens-contracts/contracts/ConditionalTokens.sol";
 import {CTHelpers} from "@gnosis.pm/conditional-tokens-contracts/contracts/CTHelpers.sol";
-import {ConstructedCloneFactory} from "@gnosis.pm/util-contracts/contracts/ConstructedCloneFactory.sol";
+import {Create2CloneFactory} from "market-makers/Create2CloneFactory.sol";
 import {CappedLMSRMarketMaker} from "./CappedLMSRMarketMaker.sol";
 import {Whitelist} from "market-makers/Whitelist.sol";
+import {LMSRMarketMakerData} from "market-makers/LMSRMarketMakerFactory.sol";
 import {ERC1155TokenReceiver} from "@gnosis.pm/conditional-tokens-contracts/contracts/ERC1155/ERC1155TokenReceiver.sol";
 
-contract CappedLMSRMarketMakerData {
-    address internal _owner;
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-
-    bytes4 internal constant _INTERFACE_ID_ERC165 = 0x01ffc9a7;
-    mapping(bytes4 => bool) internal _supportedInterfaces;
-
-    uint64 constant FEE_RANGE = 10 ** 18;
-    event AMMCreated(uint256 initialFunding);
-    ConditionalTokens internal pmSystem;
-    IERC20 internal collateralToken;
-    bytes32[] internal conditionIds;
-    uint256 internal atomicOutcomeSlotCount;
-    uint64 internal fee;
-    uint256 internal funding;
-    Stage internal stage;
-    Whitelist internal whitelist;
-
-    uint256[] internal outcomeSlotCounts;
-    bytes32[][] internal collectionIds;
-    uint256[] internal positionIds;
-
-    // CappedLMSRMarketMaker specific
+contract CappedLMSRMarketMakerData is LMSRMarketMakerData {
     uint256 internal maxCostPerTx;
     uint256 internal lossUsed;
     int256 internal cumulativeNetCost;
-
-    enum Stage {
-        Running,
-        Paused,
-        Closed
-    }
 }
 
-contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMarketMakerData {
+contract CappedLMSRDeterministicFactory is Create2CloneFactory, CappedLMSRMarketMakerData {
     event CappedLMSRMarketMakerCreation(
         address indexed creator,
-        CappedLMSRMarketMaker cappedLMSRMarketMaker,
+        CappedLMSRMarketMaker marketMaker,
         ConditionalTokens pmSystem,
         IERC20 collateralToken,
         bytes32[] conditionIds,
@@ -79,7 +51,6 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
             ERC1155TokenReceiver(0).onERC1155Received.selector ^ ERC1155TokenReceiver(0).onERC1155BatchReceived.selector
         ] = true;
 
-        // Validate inputs
         require(address(_pmSystem) != address(0) && _fee < FEE_RANGE);
         pmSystem = _pmSystem;
         collateralToken = _collateralToken;
@@ -122,7 +93,8 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
         }
     }
 
-    function createCappedLMSRMarketMaker(
+    function create2CappedLMSRMarketMaker(
+        uint256 saltNonce,
         ConditionalTokens pmSystem,
         IERC20 collateralToken,
         bytes32[] calldata conditionIds,
@@ -130,22 +102,25 @@ contract CappedLMSRMarketMakerFactory is ConstructedCloneFactory, CappedLMSRMark
         Whitelist whitelist,
         uint256 funding,
         uint256 maxCostPerTx
-    ) external returns (CappedLMSRMarketMaker cappedLMSRMarketMaker) {
+    ) external returns (CappedLMSRMarketMaker marketMaker) {
         require(funding > 0, "funding must be positive");
 
-        cappedLMSRMarketMaker = CappedLMSRMarketMaker(
-            createClone(
+        marketMaker = CappedLMSRMarketMaker(
+            create2Clone(
                 address(implementationMaster),
+                saltNonce,
                 abi.encode(pmSystem, collateralToken, conditionIds, fee, whitelist, maxCostPerTx)
             )
         );
+
         collateralToken.transferFrom(msg.sender, address(this), funding);
-        collateralToken.approve(address(cappedLMSRMarketMaker), funding);
-        cappedLMSRMarketMaker.changeFunding(int256(funding));
-        cappedLMSRMarketMaker.resume();
-        cappedLMSRMarketMaker.transferOwnership(msg.sender);
+        collateralToken.approve(address(marketMaker), funding);
+        marketMaker.changeFunding(int256(funding));
+        marketMaker.resume();
+        marketMaker.transferOwnership(msg.sender);
+
         emit CappedLMSRMarketMakerCreation(
-            msg.sender, cappedLMSRMarketMaker, pmSystem, collateralToken, conditionIds, fee, funding, maxCostPerTx
+            msg.sender, marketMaker, pmSystem, collateralToken, conditionIds, fee, funding, maxCostPerTx
         );
     }
 }

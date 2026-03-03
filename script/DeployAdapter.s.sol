@@ -23,10 +23,8 @@ contract DeployAdapter is Script {
         vm.startBroadcast();
         address ctf = vm.deployCode("out_ctf/ConditionalTokens.sol/ConditionalTokens.json");
         address fpmmFactory = vm.deployCode("out_market/FPMMDeterministicFactory.sol/FPMMDeterministicFactory.json");
-        // Note: LMSRMarketMakerFactory requires Fixed192x64Math library to be pre-linked via --libraries flag
-        address lmsrFactory = vm.deployCode("out_market/LMSRMarketMakerFactory.sol/LMSRMarketMakerFactory.json");
-        // Note: CappedLMSRMarketMakerFactory also requires Fixed192x64Math library pre-linked
-        address cappedLmsrFactory = vm.deployCode("out_market_ext/CappedLMSRMarketMakerFactory.sol/CappedLMSRMarketMakerFactory.json");
+        // Note: CappedLMSRDeterministicFactory requires Fixed192x64Math library to be pre-linked via --libraries flag
+        address cappedLmsrFactory = vm.deployCode("out_market_ext/CappedLMSRDeterministicFactory.sol/CappedLMSRDeterministicFactory.json");
         address whitelistFactory = vm.deployCode("out_market_ext/WhitelistFactory.sol/WhitelistFactory.json");
 
         UmaCtfAdapter ctfAdapter = new UmaCtfAdapter(ctf, finder, oo);
@@ -52,7 +50,6 @@ contract DeployAdapter is Script {
             umaCtfAdapter: address(ctfAdapter),
             umaCtfAdapterGate: address(ctfAdapterGate),
             fpmmFactory: fpmmFactory,
-            lmsrFactory: lmsrFactory,
             cappedLmsrFactory: cappedLmsrFactory,
             whitelistFactory: whitelistFactory,
             deployedAtBlock: block.number
@@ -62,8 +59,7 @@ contract DeployAdapter is Script {
         console2.log("UmaCtfAdapter deployed at:", result.umaCtfAdapter);
         console2.log("UmaCtfAdapterGate deployed at:", result.umaCtfAdapterGate);
         console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
-        console2.log("LMSRMarketMakerFactory deployed at:", result.lmsrFactory);
-        console2.log("CappedLMSRMarketMakerFactory deployed at:", result.cappedLmsrFactory);
+        console2.log("CappedLMSRDeterministicFactory deployed at:", result.cappedLmsrFactory);
         console2.log("WhitelistFactory deployed at:", result.whitelistFactory);
     }
 
