@@ -45,9 +45,6 @@ export const DeploymentOutputSchema = z.object({
   fpmmFactory: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  lmsrFactory: z
-    .string()
-    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   cappedLmsrFactory: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
