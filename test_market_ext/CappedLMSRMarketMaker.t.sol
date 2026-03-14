@@ -536,6 +536,192 @@ contract CappedLMSRMarketMakerTest is TestUtils {
     }
 
     // ----------------------------------------------------------------
+    // tradeWithSurcharge
+    // ----------------------------------------------------------------
+
+    function test_tradeWithSurcharge_basic() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        int256 cost = mm.tradeWithSurcharge(amounts, 0, 0);
+        assertTrue(cost > 0, "buy should have positive cost");
+        assertTrue(mm.cumulativeNetCost() == cost, "cumulativeNetCost should match");
+    }
+
+    function test_tradeWithSurcharge_increasedCost() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+        ctf.setApprovalForAll(address(mm), true);
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        // Trade without surcharge
+        int256 plainCost = mm.trade(amounts, 0);
+
+        // Sell back to reset position
+        int256[] memory sellAmounts = new int256[](2);
+        sellAmounts[0] = -int256(10 * ONE);
+        sellAmounts[1] = 0;
+        mm.trade(sellAmounts, 0);
+
+        // Trade with 5% surcharge from same state
+        uint64 surchargeRate = uint64(5 * 10**16);
+        int256 surchargeCost = mm.tradeWithSurcharge(amounts, 0, surchargeRate);
+
+        assertTrue(surchargeCost > plainCost, "surcharge should increase cost");
+    }
+
+    function test_tradeWithSurcharge_feeRestored() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+
+        uint64 originalFee = mm.fee();
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        uint64 surchargeRate = uint64(5 * 10**16);
+        mm.tradeWithSurcharge(amounts, 0, surchargeRate);
+
+        assertEq(uint256(mm.fee()), uint256(originalFee), "fee should be restored after tradeWithSurcharge");
+    }
+
+    function test_tradeWithSurcharge_feeRestoredWithExistingFee() public {
+        // Create market, set a base fee, then trade with surcharge
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+
+        uint64 baseFee = uint64(2 * 10**16); // 2%
+        mm.pause();
+        mm.changeFee(baseFee);
+        mm.resume();
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        uint64 surchargeRate = uint64(3 * 10**16); // 3% surcharge on top of 2% base
+        mm.tradeWithSurcharge(amounts, 0, surchargeRate);
+
+        assertEq(uint256(mm.fee()), uint256(baseFee), "base fee should be restored");
+    }
+
+    function test_tradeWithSurcharge_updatesLossTracking() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        int256 cost = mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10**16));
+
+        assertTrue(cost > 0, "cost should be positive");
+        assertEq(mm.lossUsed(), uint256(cost), "lossUsed should match cost");
+        assertTrue(mm.cumulativeNetCost() == cost, "cumulativeNetCost should match cost");
+    }
+
+    function test_tradeWithSurcharge_respectsMaxCostPerTx() public {
+        uint256 funding = 1000 * ONE;
+        uint256 tinyCap = 1; // Very small cap
+
+        CappedLMSRMarketMaker mm = createBinaryMarketWithCap(funding, tinyCap);
+        collateral.approve(address(mm), uint256(-1));
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        (bool success,) = address(mm).call(
+            abi.encodeWithSignature("tradeWithSurcharge(int256[],int256,uint64)", amounts, int256(0), uint64(0))
+        );
+        assertTrue(!success, "tradeWithSurcharge should revert when cost exceeds maxCostPerTx");
+    }
+
+    function test_tradeWithSurcharge_revertsWhenPaused() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+        mm.pause();
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        (bool success,) = address(mm).call(
+            abi.encodeWithSignature("tradeWithSurcharge(int256[],int256,uint64)", amounts, int256(0), uint64(0))
+        );
+        assertTrue(!success, "tradeWithSurcharge should revert when paused");
+    }
+
+    function test_tradeWithSurcharge_sell() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+        ctf.setApprovalForAll(address(mm), true);
+
+        // Buy first
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+        int256 buyCost = mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10**16));
+
+        // Sell back with surcharge
+        amounts[0] = -int256(5 * ONE);
+        amounts[1] = 0;
+        int256 sellCost = mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10**16));
+
+        assertTrue(sellCost < 0, "sell should return collateral");
+        assertTrue(mm.cumulativeNetCost() < buyCost, "cumulativeNetCost should decrease after sell");
+        assertEq(mm.lossUsed(), uint256(buyCost), "lossUsed high-water mark should not decrease");
+    }
+
+    function test_tradeWithSurcharge_zeroSurchargeMatchesTrade() public {
+        // With zero surcharge, tradeWithSurcharge should cost the same as calcNetCost predicts
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        // Get expected cost before trade
+        int256 expectedCost = mm.calcNetCost(amounts);
+        int256 actualCost = mm.tradeWithSurcharge(amounts, 0, 0);
+
+        int256 diff = actualCost > expectedCost ? actualCost - expectedCost : expectedCost - actualCost;
+        assertTrue(diff <= 1, "zero surcharge should match calcNetCost");
+    }
+
+    function test_tradeWithSurcharge_overflowReverts() public {
+        CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
+        collateral.approve(address(mm), uint256(-1));
+
+        int256[] memory amounts = new int256[](2);
+        amounts[0] = int256(10 * ONE);
+        amounts[1] = 0;
+
+        // uint64 max = 2^64 - 1; surcharge that overflows when added to fee (0)
+        // Set a base fee first, then use a surcharge that wraps around
+        mm.pause();
+        mm.changeFee(1);
+        mm.resume();
+
+        // max uint64 should overflow when added to fee of 1
+        uint64 maxSurcharge = uint64(-1); // 2^64 - 1
+
+        (bool success,) = address(mm).call(
+            abi.encodeWithSignature("tradeWithSurcharge(int256[],int256,uint64)", amounts, int256(0), maxSurcharge)
+        );
+        assertTrue(!success, "tradeWithSurcharge should revert on surcharge overflow");
+    }
+
+    // ----------------------------------------------------------------
     // Funding management
     // ----------------------------------------------------------------
 

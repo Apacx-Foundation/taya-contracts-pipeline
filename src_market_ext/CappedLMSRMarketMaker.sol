@@ -27,13 +27,7 @@ contract CappedLMSRMarketMaker is LMSRMarketMaker {
         emit MaxCostPerTxChanged(maxCostPerTx);
     }
 
-    /// @dev Override trade to enforce maxCostPerTx cap and track cumulative loss.
-    /// Since calcNetCost([0,...]) ≈ 0 (b = funding keeps balances symmetric), we use
-    /// cumulativeNetCost directly as the loss metric — it tracks actual collateral flow.
-    function trade(int256[] memory outcomeTokenAmounts, int256 collateralLimit) public returns (int256 netCost) {
-        // Execute the actual trade
-        netCost = super.trade(outcomeTokenAmounts, collateralLimit);
-
+    function _afterTrade(int netCost) internal {
         // Per-trade cap (uses raw calcNetCost which is what the trader pays)
         if (maxCostPerTx > 0 && netCost > 0) {
             int256 expectedCost = netCost - int256(calcMarketFee(uint256(netCost)));
@@ -41,7 +35,6 @@ contract CappedLMSRMarketMaker is LMSRMarketMaker {
                 expectedCost <= 0 || uint256(expectedCost) <= maxCostPerTx, "trade cost exceeds maxCostPerTx"
             );
         }
-
         // Accumulate net cost from this trade
         cumulativeNetCost = cumulativeNetCost + netCost;
 
@@ -53,5 +46,33 @@ contract CappedLMSRMarketMaker is LMSRMarketMaker {
                 emit LossUpdated(lossUsed);
             }
         }
+    }
+
+    /// @dev Override trade to enforce maxCostPerTx cap and track cumulative loss.
+    /// Since calcNetCost([0,...]) ≈ 0 (b = funding keeps balances symmetric), we use
+    /// cumulativeNetCost directly as the loss metric — it tracks actual collateral flow.
+    function trade(int[] memory outcomeTokenAmounts, int collateralLimit) 
+        public 
+        returns (int netCost) 
+    {
+        // Execute the actual trade
+        netCost = super.trade(outcomeTokenAmounts, collateralLimit);
+        _afterTrade(netCost);
+    }
+
+    function tradeWithSurcharge(int[] memory outcomeTokenAmounts, int collateralLimit, uint64 surcharge)
+        public
+        returns (int netCost)
+    {
+        uint64 oldFee = fee;
+        uint64 newFee = oldFee + surcharge;
+        require(newFee >= oldFee, "surcharge overflow");
+
+        // Execute the actual trade
+        fee = newFee;
+        netCost = super.trade(outcomeTokenAmounts, collateralLimit);
+        fee = oldFee;
+
+        _afterTrade(netCost);
     }
 }
