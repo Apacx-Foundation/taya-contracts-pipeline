@@ -54,6 +54,12 @@ export const DeploymentOutputSchema = z.object({
   whitelistFactory: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  fixedMathLib: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  platformRegistry: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   deployedAtBlock: z.number() as z.ZodType<number>,
 });
 

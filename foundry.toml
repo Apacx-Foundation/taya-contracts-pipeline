@@ -5,6 +5,7 @@ libs = ["lib"]
 allow_paths = ["lib"]
 out = "out"
 solc = "0.8.15"
+evm_version = "shanghai"
 ffi = true
 gas_reports = ["*"]
 optimizer_runs = 1000000

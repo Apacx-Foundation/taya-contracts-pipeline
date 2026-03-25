@@ -4,8 +4,11 @@ pragma solidity 0.8.15;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
+import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {UmaCtfAdapterDemo} from "taya-uma-ctf-adapter/UmaCtfAdapterDemo.sol";
 import {UmaCtfAdapterGate} from "../src/UmaCtfAdapterGate.sol";
+import {PlatformRegistry} from "../src/PlatformRegistry.sol";
+import {PlatformUser} from "../src/PlatformUser.sol";
 import {DeploymentHelper, DeployResult, DeployParams} from "./DeploymentHelper.sol";
 
 contract DeployAdapterDemo is Script {
@@ -39,6 +42,9 @@ contract DeployAdapterDemo is Script {
         }
         // revoke deployer's auth
         if (!isDeployerAdmin) ctfAdapter.renounceAdmin();
+
+        address registry = _deployRegistry(admins, whitelistFactory);
+
         vm.stopBroadcast();
 
         // Verify
@@ -52,6 +58,7 @@ contract DeployAdapterDemo is Script {
             fpmmFactory: fpmmFactory,
             cappedLmsrFactory: cappedLmsrFactory,
             whitelistFactory: whitelistFactory,
+            platformRegistry: registry,
             deployedAtBlock: block.number
         });
 
@@ -61,6 +68,17 @@ contract DeployAdapterDemo is Script {
         console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
         console2.log("CappedLMSRDeterministicFactory deployed at:", result.cappedLmsrFactory);
         console2.log("WhitelistFactory deployed at:", result.whitelistFactory);
+        console2.log("PlatformRegistry deployed at:", result.platformRegistry);
+    }
+
+    function _deployRegistry(address[] memory admins, address wlFactory) internal returns (address) {
+        PlatformRegistry impl = new PlatformRegistry();
+        PlatformUser walletImpl = new PlatformUser();
+        address[] memory kmsSigners = new address[](0);
+        bytes memory initData = abi.encodeWithSelector(
+            PlatformRegistry.initialize.selector, msg.sender, address(walletImpl), wlFactory, admins, kmsSigners
+        );
+        return address(new ERC1967Proxy(address(impl), initData));
     }
 
     function _verifyStatePostDeployment(address admin, address ctf, address adapter, address gate)

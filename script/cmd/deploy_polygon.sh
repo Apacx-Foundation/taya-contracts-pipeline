@@ -51,12 +51,17 @@ forge script ./script/DeployAdapterDemo.s.sol \
   --private-key="$PRIVATE_KEY" \
   --isolate
 
+# Inject Fixed192x64Math address (deployed outside the forge script)
+jq --arg addr "$FIXED_MATH_LIB_ADDRESS" '. + {fixedMathLib: $addr}' "$OUTPUT_PATH" > "${OUTPUT_PATH}.tmp" \
+  && mv "${OUTPUT_PATH}.tmp" "$OUTPUT_PATH"
+
 CTF_ADDRESS=$(jq -r '.ctf' "$OUTPUT_PATH")
 ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
 ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
 FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
 CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
 WHITELIST_FACTORY_ADDRESS=$(jq -r '.whitelistFactory' "$OUTPUT_PATH")
+PLATFORM_REGISTRY_ADDRESS=$(jq -r '.platformRegistry' "$OUTPUT_PATH")
 FINDER_ADDRESS=$(jq -r '.uma.finder' "$NETWORK_CONFIG_PATH")
 OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
@@ -67,6 +72,7 @@ echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
 echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
 echo "  CappedLMSRDeterministicFactory: ${CAPPED_LMSR_FACTORY_ADDRESS}"
 echo "  WhitelistFactory:               ${WHITELIST_FACTORY_ADDRESS}"
+echo "  PlatformRegistry (proxy):       ${PLATFORM_REGISTRY_ADDRESS}"
 
 if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
   CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
