@@ -9,8 +9,10 @@ import "openzeppelin-contracts/contracts/proxy/beacon/BeaconProxy.sol";
 import "openzeppelin-contracts/contracts/utils/Create2.sol";
 import "openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC1155} from "openzeppelin-contracts/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PlatformUser} from "./PlatformUser.sol";
+import {UmaCtfAdapter} from "../lib/taya-uma-ctf-adapter/src/UmaCtfAdapter.sol";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -32,7 +34,7 @@ interface ICappedLMSRFactory {
         address whitelist,
         uint256 funding,
         uint256 maxCostPerTx
-    ) external returns (address);
+    ) external returns (address marketMaker);
 }
 
 interface ICappedLMSRPool {
@@ -43,6 +45,7 @@ interface ICappedLMSRPool {
         bool coverCollateral
     ) external returns (int256);
     function pmSystem() external view returns (address);
+    function withdrawFees() external returns (uint256);
 }
 
 interface IConditionalTokens {
@@ -54,36 +57,6 @@ interface IConditionalTokens {
     ) external;
     function getOutcomeSlotCount(bytes32 conditionId) external view returns (uint256);
     function prepareCondition(address oracle, bytes32 questionId, uint256 outcomeSlotCount) external;
-}
-
-interface IERC1155 {
-    function setApprovalForAll(address operator, bool approved) external;
-}
-
-interface IUmaCtfAdapter {
-    function initialize(
-        bytes memory ancillaryData,
-        address rewardToken,
-        uint256 reward,
-        uint256 proposalBond,
-        uint256 liveness
-    ) external returns (bytes32 questionId);
-    function getQuestion(bytes32 questionId) external view returns (bytes memory);
-    function ready(bytes32 questionId) external view returns (bool);
-    function resolve(bytes32 questionId) external;
-    function flag(bytes32 questionId) external returns (bool);
-    function unflag(bytes32 questionId) external;
-    function pause(bytes32 questionId) external;
-    function unpause(bytes32 questionId) external;
-}
-
-interface IUmaCtfAdapterGate {
-    function flag(bytes32 questionId) external returns (bool);
-    function unflag(bytes32 questionId) external;
-    function pause(bytes32 questionId) external;
-    function unpause(bytes32 questionId) external;
-    function reset(bytes32 questionId) external;
-    function resolveManually(bytes32 questionId, uint256[] calldata payouts) external;
 }
 
 // ─── WalletLib ────────────────────────────────────────────────────────────────
@@ -127,7 +100,7 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
     mapping(bytes32 => mapping(address => uint256)) public platformBalances;
 
     /// @notice Registered pools (deployed via deployPool)
-    mapping(address => bool) public isRegisteredPool;
+    mapping(address => bytes32) public isRegisteredPool;
 
     // ─── Errors ───────────────────────────────────────────────────────────────
     error PlatformAlreadyRegistered();
@@ -144,6 +117,7 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
     event UserWalletFunded(bytes32 indexed platformId, address indexed wallet, address indexed token, uint256 amount);
     event WithdrawnToAdmin(bytes32 indexed platformId, address indexed admin, address indexed token, uint256 amount);
     event PoolDeployed(bytes32 indexed platformId, address indexed pool);
+    event FeesCollected(bytes32 indexed platformId, address indexed pool, address indexed token, uint256 amount);
 
     // ─── Modifiers ────────────────────────────────────────────────────────────
     modifier platformMustExist(bytes32 platformId) {
@@ -262,8 +236,6 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
         platformMustExist(platformId)
         returns (address wallet)
     {
-        wallet = computeUserWalletAddress(platformId, userId);
-        require(wallet.code.length == 0, "already deployed");
         return _getOrDeployUserWallet(platformId, userId, true);
     }
 
@@ -321,8 +293,20 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
             .create2CappedLMSRMarketMaker(
                 p.saltNonce, p.pmSystem, p.collateralToken, p.conditionIds, p.fee, whitelist, p.funding, p.maxCostPerTx
             );
-        isRegisteredPool[pool] = true;
+        isRegisteredPool[pool] = p.platformId;
         emit PoolDeployed(p.platformId, pool);
+    }
+
+    // ================================================================
+    // Fee collection (KMS_ROLE)
+    // ================================================================
+    function collectPoolFees(address pool, address collateralToken) external nonReentrant onlyRole(KMS_ROLE) {
+        bytes32 platformId = isRegisteredPool[pool];
+        if (platformId == bytes32(0)) revert PoolNotRegistered();
+        uint256 balBefore = IERC20(collateralToken).balanceOf(address(this));
+        ICappedLMSRPool(pool).withdrawFees();
+        uint256 collected = IERC20(collateralToken).balanceOf(address(this)) - balBefore;
+        emit FeesCollected(platformId, pool, collateralToken, collected);
     }
 
     // ================================================================
@@ -340,7 +324,7 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
         bool coverCollateral
     ) external nonReentrant onlyRole(KMS_ROLE) {
         address uw = _getOrDeployUserWallet(platformId, userId, false);
-        if (!isRegisteredPool[pool]) revert PoolNotRegistered();
+        if (isRegisteredPool[pool] == bytes32(0)) revert PoolNotRegistered();
 
         PlatformUser(payable(uw))
             .execute(
@@ -371,7 +355,7 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
         bool coverCollateral
     ) external nonReentrant onlyRole(KMS_ROLE) {
         address uw = _getOrDeployUserWallet(platformId, userId, false);
-        if (!isRegisteredPool[pool]) revert PoolNotRegistered();
+        if (isRegisteredPool[pool] == bytes32(0)) revert PoolNotRegistered();
 
         PlatformUser(payable(uw))
             .execute(ctf, 0, abi.encodeWithSelector(IERC1155.setApprovalForAll.selector, pool, true));
@@ -412,17 +396,6 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
             );
     }
 
-    // ================================================================
-    // Oracle operations (KMS_ROLE)
-    // ================================================================
-
-    function initializeCondition(address ctf, address oracle, bytes32 questionId, uint256 outcomeSlotCount)
-        external
-        onlyRole(KMS_ROLE)
-    {
-        IConditionalTokens(ctf).prepareCondition(oracle, questionId, outcomeSlotCount);
-    }
-
     function initializeQuestion(
         address adapter,
         bytes memory ancillaryData,
@@ -431,34 +404,37 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
         uint256 proposalBond,
         uint256 liveness
     ) external onlyRole(KMS_ROLE) returns (bytes32) {
-        return IUmaCtfAdapter(adapter).initialize(ancillaryData, rewardToken, reward, proposalBond, liveness);
+        return UmaCtfAdapter(adapter).initialize(ancillaryData, rewardToken, reward, proposalBond, liveness);
     }
 
-    function flagQuestion(address gate, bytes32 questionId) external onlyRole(KMS_ROLE) {
-        IUmaCtfAdapterGate(gate).flag(questionId);
+    function resolveQuestion(address adapter, bytes32 questionID, uint256[] calldata payouts)
+        external
+        onlyRole(KMS_ROLE)
+    {
+        return UmaCtfAdapter(adapter).resolveManually(questionID, payouts);
     }
 
-    function unflagQuestion(address gate, bytes32 questionId) external onlyRole(KMS_ROLE) {
-        IUmaCtfAdapterGate(gate).unflag(questionId);
+    function flagQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
+        return UmaCtfAdapter(adapter).flag(questionID);
     }
 
-    function pauseQuestion(address gate, bytes32 questionId) external onlyRole(KMS_ROLE) {
-        IUmaCtfAdapterGate(gate).pause(questionId);
+    function resetQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
+        return UmaCtfAdapter(adapter).reset(questionID);
     }
 
-    function unpauseQuestion(address gate, bytes32 questionId) external onlyRole(KMS_ROLE) {
-        IUmaCtfAdapterGate(gate).unpause(questionId);
+    function pauseQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
+        return UmaCtfAdapter(adapter).pause(questionID);
     }
 
-    function resolveQuestion(address gate, bytes32 questionId, uint256[] calldata payouts) external onlyRole(KMS_ROLE) {
-        IUmaCtfAdapterGate(gate).resolveManually(questionId, payouts);
+    function unpauseQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
+        return UmaCtfAdapter(adapter).unpause(questionID);
     }
 
-    // ================================================================
-    // Whitelist management (ADMIN_ROLE)
-    // ================================================================
+    function postUpdate(address adapter, bytes32 questionID, bytes calldata update) external onlyRole(KMS_ROLE) {
+        UmaCtfAdapter(adapter).postUpdate(questionID, update);
+    }
 
-    function addToWhitelist(address[] calldata accounts) external onlyRole(ADMIN_ROLE) {
+    function addToWhitelist(address[] calldata accounts) external onlyRole(KMS_ROLE) {
         IWhitelist(whitelist).addToWhitelist(accounts);
     }
 }

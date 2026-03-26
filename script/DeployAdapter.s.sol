@@ -6,7 +6,7 @@ import {console2} from "forge-std/console2.sol";
 
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {UmaCtfAdapter} from "lib/taya-uma-ctf-adapter/src/UmaCtfAdapter.sol";
-import {UmaCtfAdapterGate} from "../src/UmaCtfAdapterGate.sol";
+
 import {PlatformRegistry} from "../src/PlatformRegistry.sol";
 import {PlatformUser} from "../src/PlatformUser.sol";
 import {DeploymentHelper, DeployResult, DeployParams} from "./DeploymentHelper.sol";
@@ -25,37 +25,36 @@ contract DeployAdapter is Script {
     {
         vm.startBroadcast();
         address ctf = vm.deployCode("out_ctf/ConditionalTokens.sol/ConditionalTokens.json");
-        address fpmmFactory = vm.deployCode("out_market/FPMMDeterministicFactory.sol/FPMMDeterministicFactory.json");
         // Note: CappedLMSRDeterministicFactory requires Fixed192x64Math library to be pre-linked via --libraries flag
-        address cappedLmsrFactory = vm.deployCode("out_market_ext/CappedLMSRDeterministicFactory.sol/CappedLMSRDeterministicFactory.json");
+        address cappedLmsrFactory =
+            vm.deployCode("out_market_ext/CappedLMSRDeterministicFactory.sol/CappedLMSRDeterministicFactory.json");
         address whitelistFactory = vm.deployCode("out_market_ext/WhitelistFactory.sol/WhitelistFactory.json");
 
         UmaCtfAdapter ctfAdapter = new UmaCtfAdapter(ctf, finder, oo);
-        UmaCtfAdapterGate ctfAdapterGate = new UmaCtfAdapterGate(address(ctfAdapter));
+        address registry = _deployRegistry(admins, whitelistFactory);
 
-        // Add admin auth to the Admin addresses and the gate
-        ctfAdapter.addAdmin(address(ctfAdapterGate));
+        // Assign registry as admin
+        ctfAdapter.addAdmin(registry);
+
+        // Additionally add Admin addresses
         bool isDeployerAdmin = false;
         for (uint256 i = 0; i < admins.length; i++) {
             ctfAdapter.addAdmin(admins[i]);
             isDeployerAdmin = isDeployerAdmin || admins[i] == msg.sender;
         }
+
         // revoke deployer's auth
         if (!isDeployerAdmin) ctfAdapter.renounceAdmin();
-
-        address registry = _deployRegistry(admins, whitelistFactory);
 
         vm.stopBroadcast();
 
         // Verify
         for (uint256 i = 0; i < admins.length; i++) {
-            _verifyStatePostDeployment(admins[i], ctf, address(ctfAdapter), address(ctfAdapterGate));
+            _verifyStatePostDeployment(admins[i], ctf, address(ctfAdapter), address(registry));
         }
         result = DeployResult({
             ctf: ctf,
             umaCtfAdapter: address(ctfAdapter),
-            umaCtfAdapterGate: address(ctfAdapterGate),
-            fpmmFactory: fpmmFactory,
             cappedLmsrFactory: cappedLmsrFactory,
             whitelistFactory: whitelistFactory,
             platformRegistry: registry,
@@ -64,8 +63,6 @@ contract DeployAdapter is Script {
 
         console2.log("ConditionalTokens deployed at:", result.ctf);
         console2.log("UmaCtfAdapter deployed at:", result.umaCtfAdapter);
-        console2.log("UmaCtfAdapterGate deployed at:", result.umaCtfAdapterGate);
-        console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
         console2.log("CappedLMSRDeterministicFactory deployed at:", result.cappedLmsrFactory);
         console2.log("WhitelistFactory deployed at:", result.whitelistFactory);
         console2.log("PlatformRegistry deployed at:", result.platformRegistry);
@@ -81,18 +78,18 @@ contract DeployAdapter is Script {
         return address(new ERC1967Proxy(address(impl), initData));
     }
 
-    function _verifyStatePostDeployment(address admin, address ctf, address adapter, address gate)
+    function _verifyStatePostDeployment(address admin, address ctf, address adapter, address registry)
         internal
         view
         returns (bool)
     {
         UmaCtfAdapter ctfAdapter = UmaCtfAdapter(adapter);
-        UmaCtfAdapterGate ctfAdapterGate = UmaCtfAdapterGate(gate);
+        PlatformRegistry platformRegistry = PlatformRegistry(registry);
 
+        if (platformRegistry.hasRole(platformRegistry.ADMIN_ROLE(), admin)) revert("Registry admin not set");
         if (!ctfAdapter.isAdmin(admin)) revert("Adapter admin not set");
-        if (!ctfAdapter.isAdmin(gate)) revert("Adapter gate admin not set");
+        if (!ctfAdapter.isAdmin(registry)) revert("Adapter gate admin not set");
         if (address(ctfAdapter.ctf()) != ctf) revert("Unexpected ConditionalTokensFramework set on adapter");
-        if (address(ctfAdapterGate.adapter()) != adapter) revert("Unexpected adapter set on gate");
 
         return true;
     }

@@ -58,7 +58,6 @@ jq --arg addr "$FIXED_MATH_LIB_ADDRESS" '. + {fixedMathLib: $addr}' "$OUTPUT_PAT
 CTF_ADDRESS=$(jq -r '.ctf' "$OUTPUT_PATH")
 ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
 ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
-FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
 CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
 WHITELIST_FACTORY_ADDRESS=$(jq -r '.whitelistFactory' "$OUTPUT_PATH")
 PLATFORM_REGISTRY_ADDRESS=$(jq -r '.platformRegistry' "$OUTPUT_PATH")
@@ -68,7 +67,6 @@ OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 echo "✓ Deployments"
 echo "  ConditionalTokens:              ${CTF_ADDRESS}"
 echo "  UmaCtfAdapterDemo:              ${ADAPTER_ADDRESS}"
-echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
 echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
 echo "  CappedLMSRDeterministicFactory: ${CAPPED_LMSR_FACTORY_ADDRESS}"
 echo "  WhitelistFactory:               ${WHITELIST_FACTORY_ADDRESS}"
@@ -113,20 +111,6 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     "$CTF_ADDRESS" \
     "lib/taya-conditional-tokens-contracts/contracts/ConditionalTokens.sol:ConditionalTokens"
   
-  FOUNDRY_PROFILE=market \
-  FOUNDRY_LIBS='["lib","node_modules"]' \
-  FOUNDRY_ALLOW_PATHS='["lib","../lib","../../lib", "../node_modules"]' \
-  FOUNDRY_REMAPPINGS='["openzeppelin-solidity/=node_modules/openzeppelin-solidity/", "conditional-tokens-contracts/=lib/taya-conditional-tokens-contracts", "util-contracts/=node_modules/@gnosis.pm/util-contracts/", "canonical-weth/=node_modules/canonical-weth/"]' \
-  forge verify-contract \
-    --chain-id "$CHAIN_ID" \
-    --etherscan-api-key "$ETHERSCAN_API_KEY" \
-    --compiler-version "v0.5.10+commit.5a6ea5b1" \
-    --num-of-optimizations 200 \
-    --evm-version "petersburg" \
-    --watch \
-    "$FPMM_FACTORY_ADDRESS" \
-    "lib/taya-conditional-tokens-market-makers/contracts/FPMMDeterministicFactory.sol:FPMMDeterministicFactory"
-
   FOUNDRY_PROFILE=market \
   FOUNDRY_LIBS='["lib","node_modules"]' \
   FOUNDRY_ALLOW_PATHS='["lib","../lib","../../lib", "../node_modules"]' \

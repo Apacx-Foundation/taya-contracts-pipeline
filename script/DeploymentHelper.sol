@@ -8,8 +8,6 @@ import {stdJson} from "forge-std/StdJson.sol";
 struct DeployResult {
     address ctf;
     address umaCtfAdapter;
-    address umaCtfAdapterGate;
-    address fpmmFactory;
     address cappedLmsrFactory;
     address whitelistFactory;
     address platformRegistry;
@@ -46,11 +44,9 @@ contract DeploymentHelper is CommonBase {
 
         string memory artifacts = "artifacts";
         artifacts.serialize("ctf", result.ctf);
-        artifacts.serialize("fpmmFactory", result.fpmmFactory);
         artifacts.serialize("cappedLmsrFactory", result.cappedLmsrFactory);
         artifacts.serialize("whitelistFactory", result.whitelistFactory);
         artifacts.serialize("umaAdapter", result.umaCtfAdapter);
-        artifacts.serialize("umaAdapterGate", result.umaCtfAdapterGate);
         artifacts.serialize("platformRegistry", result.platformRegistry);
         string memory json = artifacts.serialize("deployedAtBlock", result.deployedAtBlock);
         json.write(path);

@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "postinstall": "tsup"
+    "postinstall": "tsup",
+    "test": "forge test"
   },
   "dependencies": {
     "@gnosis.pm/conditional-tokens-contracts": "file:./lib/taya-conditional-tokens-contracts",
