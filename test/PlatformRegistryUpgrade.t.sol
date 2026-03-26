@@ -73,6 +73,9 @@ contract PlatformRegistryUpgradeTest is Test {
             defaultAdmin,
             address(walletImpl),
             address(wlFactory),
+            address(0), // adapter
+            address(0), // poolFactory
+            address(0), // ctf
             admins,
             kmsSigners
         );
@@ -140,7 +143,7 @@ contract PlatformRegistryUpgradeTest is Test {
         kmsSigners[0] = address(0xBEEF);
 
         vm.expectRevert("Initializable: contract is already initialized");
-        registry.initialize(address(0xDEAD), address(0xBEEF), address(0xCAFE), admins, kmsSigners);
+        registry.initialize(address(0xDEAD), address(0xBEEF), address(0xCAFE), address(0), address(0), address(0), admins, kmsSigners);
     }
 
     // ================================================================

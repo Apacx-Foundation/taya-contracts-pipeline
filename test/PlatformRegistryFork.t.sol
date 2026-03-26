@@ -145,7 +145,7 @@ abstract contract ForkBase is Test {
         kmsSigners[0] = kms;
 
         bytes memory initData = abi.encodeWithSelector(
-            PlatformRegistry.initialize.selector, defaultAdmin, address(walletImpl), wlFactory, admins, kmsSigners
+            PlatformRegistry.initialize.selector, defaultAdmin, address(walletImpl), wlFactory, address(adapter), lmsrFactory, ctfAddr, admins, kmsSigners
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
@@ -171,9 +171,9 @@ abstract contract ForkBase is Test {
 
         PlatformRegistry.DeployPoolParams memory p = PlatformRegistry.DeployPoolParams({
             platformId: platformId,
-            factory: lmsrFactory,
+
             saltNonce: 0,
-            pmSystem: ctfAddr,
+
             collateralToken: collateralToken,
             conditionIds: conditionIds,
             fee: 0,
@@ -198,7 +198,7 @@ abstract contract ForkBase is Test {
         bytes memory ancillaryData = abi.encodePacked("q: fork test ", salt);
         // Use USDC as reward token (whitelisted on UMA collateral whitelist)
         vm.prank(kms);
-        bytes32 questionId = registry.initializeQuestion(address(adapter), ancillaryData, usdc, 0, 0, 7200);
+        bytes32 questionId = registry.initializeQuestion(platformId, ancillaryData, usdc, 0, 0, 7200);
 
         // Condition oracle is the adapter (it called prepareCondition(address(this), ...))
         bytes32 conditionId = ctf.getConditionId(address(adapter), questionId, 2);
@@ -213,7 +213,7 @@ abstract contract ForkBase is Test {
         _fundAndBuy(collateralToken, pool, conditionId);
 
         // Resolve & redeem
-        _resolveAndRedeem(ctf, collateralToken, questionId, conditionId);
+        _resolveAndRedeem(collateralToken, questionId, conditionId);
     }
 
     function _fundAndBuy(address collateralToken, address pool, bytes32 conditionId) internal {
@@ -238,14 +238,14 @@ abstract contract ForkBase is Test {
         assertGt(ctf.balanceOf(wallet, positionId), 0, "user should hold outcome tokens");
     }
 
-    function _resolveAndRedeem(IConditionalTokens ctf, address collateralToken, bytes32 questionId, bytes32 conditionId)
+    function _resolveAndRedeem(address collateralToken, bytes32 questionId, bytes32 conditionId)
         internal
     {
         address wallet = registry.computeUserWalletAddress(platformId, userId);
 
         // Flag question for manual resolution
         vm.prank(kms);
-        registry.flagQuestion(address(adapter), questionId);
+        registry.flagQuestion(questionId);
 
         // Fast-forward past safety period (2h + 1m)
         vm.warp(block.timestamp + 7260);
@@ -255,11 +255,11 @@ abstract contract ForkBase is Test {
         payouts[0] = 1;
         payouts[1] = 0;
         vm.prank(kms);
-        registry.resolveQuestion(address(adapter), questionId, payouts);
+        registry.resolveQuestion(questionId, payouts);
 
         uint256 balBefore = IERC20(collateralToken).balanceOf(wallet);
         vm.prank(kms);
-        registry.redeem(platformId, userId, ctfAddr, collateralToken, conditionId);
+        registry.redeem(platformId, userId, collateralToken, conditionId);
         assertGt(IERC20(collateralToken).balanceOf(wallet), balBefore, "user should receive collateral after redeem");
     }
 }
@@ -276,48 +276,87 @@ contract OracleOpsTest is ForkBase, IBulletinBoardEvents {
 
         bytes memory ancillaryData = abi.encodePacked("q: oracle ops test");
         vm.prank(kms);
-        questionId = registry.initializeQuestion(address(adapter), ancillaryData, usdc, 0, 0, 7200);
+        questionId = registry.initializeQuestion(platformId, ancillaryData, usdc, 0, 0, 7200);
     }
 
     function test_initializeQuestion() public view {
-        // Question was initialized in setUp — adapter tracks it internally
-        // Verify the conditionId is derivable (prepareCondition was called)
         IConditionalTokens ctf = IConditionalTokens(ctfAddr);
         bytes32 conditionId = ctf.getConditionId(address(adapter), questionId, 2);
         assertTrue(conditionId != bytes32(0), "conditionId should be non-zero");
     }
 
+    function test_initializeQuestion_withReward() public {
+        uint256 rewardAmount = _amount(usdc, 10);
+
+        // Deposit reward token into platform balance
+        deal(usdc, address(this), rewardAmount);
+        IERC20(usdc).approve(address(registry), rewardAmount);
+        registry.deposit(platformId, usdc, rewardAmount);
+
+        uint256 registryBalBefore = IERC20(usdc).balanceOf(address(registry));
+        uint256 platformBalBefore = registry.platformBalance(platformId, usdc);
+
+        bytes memory ancillaryData = abi.encodePacked("q: reward test");
+        vm.prank(kms);
+        bytes32 qId = registry.initializeQuestion(platformId, ancillaryData, usdc, rewardAmount, 0, 7200);
+        assertTrue(qId != bytes32(0), "should return questionId");
+
+        // Platform balance should decrease by reward
+        assertEq(
+            registry.platformBalance(platformId, usdc),
+            platformBalBefore - rewardAmount,
+            "platform balance should decrease by reward"
+        );
+
+        // Registry ERC20 balance should decrease (adapter pulled the reward)
+        assertLt(
+            IERC20(usdc).balanceOf(address(registry)),
+            registryBalBefore,
+            "registry should have transferred reward to adapter"
+        );
+    }
+
+    function test_initializeQuestion_withReward_revertIfInsufficientBalance() public {
+        uint256 rewardAmount = _amount(usdc, 10);
+        // Don't deposit — platform balance is 0
+
+        bytes memory ancillaryData = abi.encodePacked("q: insufficient reward test");
+        vm.prank(kms);
+        vm.expectRevert();
+        registry.initializeQuestion(platformId, ancillaryData, usdc, rewardAmount, 0, 7200);
+    }
+
     function test_flagQuestion() public {
         vm.prank(kms);
-        registry.flagQuestion(address(adapter), questionId);
+        registry.flagQuestion(questionId);
     }
 
     function test_unflagQuestion() public {
         vm.prank(kms);
-        registry.flagQuestion(address(adapter), questionId);
+        registry.flagQuestion(questionId);
 
         vm.prank(kms);
-        registry.unflagQuestion(address(adapter), questionId);
+        registry.unflagQuestion(questionId);
     }
 
     function test_pauseQuestion() public {
         vm.prank(kms);
-        registry.pauseQuestion(address(adapter), questionId);
+        registry.pauseQuestion(questionId);
     }
 
     function test_unpauseQuestion() public {
         vm.prank(kms);
-        registry.pauseQuestion(address(adapter), questionId);
+        registry.pauseQuestion(questionId);
 
         vm.prank(kms);
-        registry.unpauseQuestion(address(adapter), questionId);
+        registry.unpauseQuestion(questionId);
     }
 
     function test_resetQuestion_revertIfNotKms() public {
         // reset is a failsafe that re-requests price from the OO — tested here for access control only
         vm.prank(address(0xDEAD));
         vm.expectRevert();
-        registry.resetQuestion(address(adapter), questionId);
+        registry.resetQuestion(questionId);
     }
 
     function test_postUpdate() public {
@@ -327,18 +366,18 @@ contract OracleOpsTest is ForkBase, IBulletinBoardEvents {
         emit AncillaryDataUpdated(questionId, address(registry), update);
 
         vm.prank(kms);
-        registry.postUpdate(address(adapter), questionId, update);
+        registry.postUpdate(questionId, update);
     }
 
     function test_postUpdate_revertIfNotKms() public {
         vm.prank(address(0xDEAD));
         vm.expectRevert();
-        registry.postUpdate(address(adapter), questionId, bytes("bad update"));
+        registry.postUpdate(questionId, bytes("bad update"));
     }
 
     function test_resolveQuestion() public {
         vm.prank(kms);
-        registry.flagQuestion(address(adapter), questionId);
+        registry.flagQuestion(questionId);
 
         vm.warp(block.timestamp + 7260);
 
@@ -346,38 +385,38 @@ contract OracleOpsTest is ForkBase, IBulletinBoardEvents {
         payouts[0] = 1;
         payouts[1] = 0;
         vm.prank(kms);
-        registry.resolveQuestion(address(adapter), questionId, payouts);
+        registry.resolveQuestion(questionId, payouts);
     }
 
     function test_oracleOps_revertIfNotKms() public {
         vm.startPrank(address(0xDEAD));
 
         vm.expectRevert();
-        registry.initializeQuestion(address(adapter), bytes("test"), usdc, 0, 0, 7200);
+        registry.initializeQuestion(platformId, bytes("test"), usdc, 0, 0, 7200);
 
         vm.expectRevert();
-        registry.flagQuestion(address(adapter), questionId);
+        registry.flagQuestion(questionId);
 
         vm.expectRevert();
-        registry.unflagQuestion(address(adapter), questionId);
+        registry.unflagQuestion(questionId);
 
         vm.expectRevert();
-        registry.resetQuestion(address(adapter), questionId);
+        registry.resetQuestion(questionId);
 
         vm.expectRevert();
-        registry.pauseQuestion(address(adapter), questionId);
+        registry.pauseQuestion(questionId);
 
         vm.expectRevert();
-        registry.unpauseQuestion(address(adapter), questionId);
+        registry.unpauseQuestion(questionId);
 
         vm.expectRevert();
-        registry.postUpdate(address(adapter), questionId, bytes("bad"));
+        registry.postUpdate(questionId, bytes("bad"));
 
         uint256[] memory payouts = new uint256[](2);
         payouts[0] = 1;
         payouts[1] = 0;
         vm.expectRevert();
-        registry.resolveQuestion(address(adapter), questionId, payouts);
+        registry.resolveQuestion(questionId, payouts);
 
         vm.stopPrank();
     }
@@ -468,7 +507,7 @@ contract WithdrawAndFeeTest is ForkBase {
 
         bytes memory ancillaryData = abi.encodePacked("q: fee test");
         vm.prank(kms);
-        bytes32 questionId = registry.initializeQuestion(address(adapter), ancillaryData, usdc, 0, 0, 7200);
+        bytes32 questionId = registry.initializeQuestion(platformId, ancillaryData, usdc, 0, 0, 7200);
         bytes32 conditionId = ctf.getConditionId(address(adapter), questionId, 2);
 
         uint256 funding = _amount(usdc, 1000);
@@ -479,9 +518,9 @@ contract WithdrawAndFeeTest is ForkBase {
 
         PlatformRegistry.DeployPoolParams memory p = PlatformRegistry.DeployPoolParams({
             platformId: platformId,
-            factory: lmsrFactory,
+
             saltNonce: 0,
-            pmSystem: ctfAddr,
+
             collateralToken: usdc,
             conditionIds: conditionIds,
             fee: 2e16, // 2%
@@ -521,7 +560,7 @@ contract WithdrawAndFeeTest is ForkBase {
 
         bytes memory ancillaryData = abi.encodePacked("q: pool ops test");
         vm.prank(kms);
-        bytes32 questionId = registry.initializeQuestion(address(adapter), ancillaryData, usdc, 0, 0, 7200);
+        bytes32 questionId = registry.initializeQuestion(platformId, ancillaryData, usdc, 0, 0, 7200);
         bytes32 conditionId = ctf.getConditionId(address(adapter), questionId, 2);
 
         uint256 funding = _amount(usdc, 1000);
@@ -532,9 +571,9 @@ contract WithdrawAndFeeTest is ForkBase {
 
         PlatformRegistry.DeployPoolParams memory p = PlatformRegistry.DeployPoolParams({
             platformId: platformId,
-            factory: lmsrFactory,
+
             saltNonce: 1,
-            pmSystem: ctfAddr,
+
             collateralToken: usdc,
             conditionIds: conditionIds,
             fee: 2e16,

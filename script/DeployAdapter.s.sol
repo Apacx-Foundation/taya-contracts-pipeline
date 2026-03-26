@@ -31,7 +31,7 @@ contract DeployAdapter is Script {
         address whitelistFactory = vm.deployCode("out_market_ext/WhitelistFactory.sol/WhitelistFactory.json");
 
         UmaCtfAdapter ctfAdapter = new UmaCtfAdapter(ctf, finder, oo);
-        address registry = _deployRegistry(admins, whitelistFactory);
+        address registry = _deployRegistry(admins, whitelistFactory, address(ctfAdapter), cappedLmsrFactory, ctf);
 
         // Assign registry as admin
         ctfAdapter.addAdmin(registry);
@@ -71,12 +71,12 @@ contract DeployAdapter is Script {
         console2.log("PlatformRegistry deployed at:", result.platformRegistry);
     }
 
-    function _deployRegistry(address[] memory admins, address wlFactory) internal returns (address) {
+    function _deployRegistry(address[] memory admins, address wlFactory, address adapterAddr, address factoryAddr, address ctfAddr) internal returns (address) {
         PlatformRegistry impl = new PlatformRegistry();
-        PlatformUser walletImpl = new PlatformUser();
-        address[] memory kmsSigners = new address[](0); // granted post-deploy by admins
-        bytes memory initData = abi.encodeWithSelector(
-            PlatformRegistry.initialize.selector, msg.sender, address(walletImpl), wlFactory, admins, kmsSigners
+        address walletImpl = address(new PlatformUser());
+        address[] memory kmsSigners = new address[](0);
+        bytes memory initData = abi.encodeCall(
+            PlatformRegistry.initialize, (msg.sender, walletImpl, wlFactory, adapterAddr, factoryAddr, ctfAddr, admins, kmsSigners)
         );
         return address(new ERC1967Proxy(address(impl), initData));
     }

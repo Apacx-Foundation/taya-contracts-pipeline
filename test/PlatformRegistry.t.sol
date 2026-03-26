@@ -67,6 +67,9 @@ contract PlatformRegistryTest is Test {
             defaultAdmin,
             address(walletImpl),
             address(wlFactory),
+            address(0), // adapter
+            address(0), // poolFactory
+            address(0), // ctf
             admins,
             kmsSigners
         );
