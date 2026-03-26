@@ -52,6 +52,9 @@ contract DeployAdapter is Script {
         for (uint256 i = 0; i < admins.length; i++) {
             _verifyStatePostDeployment(admins[i], ctf, address(ctfAdapter), address(registry));
         }
+        // Check registry is admin
+        require(ctfAdapter.isAdmin(registry), "Adapter gate admin is not set");
+
         result = DeployResult({
             ctf: ctf,
             umaCtfAdapter: address(ctfAdapter),
@@ -86,9 +89,8 @@ contract DeployAdapter is Script {
         UmaCtfAdapter ctfAdapter = UmaCtfAdapter(adapter);
         PlatformRegistry platformRegistry = PlatformRegistry(registry);
 
-        if (platformRegistry.hasRole(platformRegistry.ADMIN_ROLE(), admin)) revert("Registry admin not set");
+        if (!platformRegistry.hasRole(platformRegistry.ADMIN_ROLE(), admin)) revert("Registry admin not set");
         if (!ctfAdapter.isAdmin(admin)) revert("Adapter admin not set");
-        if (!ctfAdapter.isAdmin(registry)) revert("Adapter gate admin not set");
         if (address(ctfAdapter.ctf()) != ctf) revert("Unexpected ConditionalTokensFramework set on adapter");
 
         return true;
