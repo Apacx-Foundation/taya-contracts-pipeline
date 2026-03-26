@@ -12,7 +12,12 @@ import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IERC1155} from "openzeppelin-contracts/contracts/token/ERC1155/IERC1155.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PlatformUser} from "./PlatformUser.sol";
-import {UmaCtfAdapter} from "../lib/taya-uma-ctf-adapter/src/UmaCtfAdapter.sol";
+import {IUmaCtfAdapter} from "../lib/taya-uma-ctf-adapter/src/interfaces/IUmaCtfAdapter.sol";
+
+interface IUmaCtfAdapterFull is IUmaCtfAdapter {
+    function resolveManually(bytes32 questionID, uint256[] calldata payouts) external;
+    function postUpdate(bytes32 questionID, bytes memory update) external;
+}
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -404,34 +409,34 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
         uint256 proposalBond,
         uint256 liveness
     ) external onlyRole(KMS_ROLE) returns (bytes32) {
-        return UmaCtfAdapter(adapter).initialize(ancillaryData, rewardToken, reward, proposalBond, liveness);
+        return IUmaCtfAdapterFull(adapter).initialize(ancillaryData, rewardToken, reward, proposalBond, liveness);
     }
 
     function resolveQuestion(address adapter, bytes32 questionID, uint256[] calldata payouts)
         external
         onlyRole(KMS_ROLE)
     {
-        return UmaCtfAdapter(adapter).resolveManually(questionID, payouts);
+        return IUmaCtfAdapterFull(adapter).resolveManually(questionID, payouts);
     }
 
     function flagQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
-        return UmaCtfAdapter(adapter).flag(questionID);
+        return IUmaCtfAdapterFull(adapter).flag(questionID);
     }
 
     function resetQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
-        return UmaCtfAdapter(adapter).reset(questionID);
+        return IUmaCtfAdapterFull(adapter).reset(questionID);
     }
 
     function pauseQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
-        return UmaCtfAdapter(adapter).pause(questionID);
+        return IUmaCtfAdapterFull(adapter).pause(questionID);
     }
 
     function unpauseQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
-        return UmaCtfAdapter(adapter).unpause(questionID);
+        return IUmaCtfAdapterFull(adapter).unpause(questionID);
     }
 
     function postUpdate(address adapter, bytes32 questionID, bytes calldata update) external onlyRole(KMS_ROLE) {
-        UmaCtfAdapter(adapter).postUpdate(questionID, update);
+        IUmaCtfAdapterFull(adapter).postUpdate(questionID, update);
     }
 
     function addToWhitelist(address[] calldata accounts) external onlyRole(KMS_ROLE) {

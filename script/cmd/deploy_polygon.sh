@@ -57,7 +57,6 @@ jq --arg addr "$FIXED_MATH_LIB_ADDRESS" '. + {fixedMathLib: $addr}' "$OUTPUT_PAT
 
 CTF_ADDRESS=$(jq -r '.ctf' "$OUTPUT_PATH")
 ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
-ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
 CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
 WHITELIST_FACTORY_ADDRESS=$(jq -r '.whitelistFactory' "$OUTPUT_PATH")
 PLATFORM_REGISTRY_ADDRESS=$(jq -r '.platformRegistry' "$OUTPUT_PATH")
@@ -86,17 +85,6 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --watch \
     "src/UmaCtfAdapterDemo.sol:UmaCtfAdapterDemo"
     
-  FOUNDRY_PROFILE=default
-  forge verify-contract \
-    --chain-id "$CHAIN_ID" \
-    --compiler-version "0.8.15" \
-    --constructor-args "$(cast abi-encode "constructor(address)" "$ADAPTER_ADDRESS")" \
-    --etherscan-api-key "$ETHERSCAN_API_KEY" \
-    "$ADAPTER_GATE_ADDRESS" \
-    --root "." \
-    --watch \
-    "src/UmaCtfAdapterGate.sol:UmaCtfAdapterGate"
-
   FOUNDRY_PROFILE=ctf \
   FOUNDRY_LIBS='["lib"]' \
   FOUNDRY_ALLOW_PATHS='["lib","../lib","../../lib","../node_modules"]' \

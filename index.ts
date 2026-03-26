@@ -42,13 +42,7 @@ export const DeploymentOutputSchema = z.object({
   umaAdapter: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  fpmmFactory: z
-    .string()
-    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   cappedLmsrFactory: z
-    .string()
-    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  umaAdapterGate: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   whitelistFactory: z
