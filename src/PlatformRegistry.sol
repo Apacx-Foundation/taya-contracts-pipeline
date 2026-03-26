@@ -15,6 +15,7 @@ import {PlatformUser} from "./PlatformUser.sol";
 import {IUmaCtfAdapter} from "../lib/taya-uma-ctf-adapter/src/interfaces/IUmaCtfAdapter.sol";
 
 interface IUmaCtfAdapterFull is IUmaCtfAdapter {
+    function unflag(bytes32 questionID) external;
     function resolveManually(bytes32 questionID, uint256[] calldata payouts) external;
     function postUpdate(bytes32 questionID, bytes memory update) external;
 }
@@ -421,6 +422,10 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
 
     function flagQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
         return IUmaCtfAdapterFull(adapter).flag(questionID);
+    }
+
+    function unflagQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {
+        return IUmaCtfAdapterFull(adapter).unflag(questionID);
     }
 
     function resetQuestion(address adapter, bytes32 questionID) external onlyRole(KMS_ROLE) {

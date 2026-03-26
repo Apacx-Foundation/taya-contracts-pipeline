@@ -289,6 +289,14 @@ contract OracleOpsTest is ForkBase, IBulletinBoardEvents {
         registry.flagQuestion(address(adapter), questionId);
     }
 
+    function test_unflagQuestion() public {
+        vm.prank(kms);
+        registry.flagQuestion(address(adapter), questionId);
+
+        vm.prank(kms);
+        registry.unflagQuestion(address(adapter), questionId);
+    }
+
     function test_pauseQuestion() public {
         vm.prank(kms);
         registry.pauseQuestion(address(adapter), questionId);
@@ -346,6 +354,9 @@ contract OracleOpsTest is ForkBase, IBulletinBoardEvents {
 
         vm.expectRevert();
         registry.flagQuestion(address(adapter), questionId);
+
+        vm.expectRevert();
+        registry.unflagQuestion(address(adapter), questionId);
 
         vm.expectRevert();
         registry.resetQuestion(address(adapter), questionId);
