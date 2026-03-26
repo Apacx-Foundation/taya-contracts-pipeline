@@ -43,6 +43,8 @@ interface IBulletinBoardEvents {
 interface IMarketMaker {
     function withdrawFees() external returns (uint256);
     function owner() external view returns (address);
+    function stage() external view returns (uint256);
+    function maxCostPerTx() external view returns (uint256);
 }
 
 // ============================================================================
@@ -511,6 +513,102 @@ contract WithdrawAndFeeTest is ForkBase {
         uint256 feesCollected = IERC20(usdc).balanceOf(address(registry)) - registryBalBefore;
 
         assertGt(feesCollected, 0, "should have collected fees from pool");
+    }
+
+    function _deployTestPool() internal returns (address pool) {
+        IConditionalTokens ctf = IConditionalTokens(ctfAddr);
+
+        bytes memory ancillaryData = abi.encodePacked("q: pool ops test");
+        vm.prank(kms);
+        bytes32 questionId = registry.initializeQuestion(address(adapter), ancillaryData, usdc, 0, 0, 7200);
+        bytes32 conditionId = ctf.getConditionId(address(adapter), questionId, 2);
+
+        uint256 funding = _amount(usdc, 1000);
+        _depositToken(usdc, funding);
+
+        bytes32[] memory conditionIds = new bytes32[](1);
+        conditionIds[0] = conditionId;
+
+        PlatformRegistry.DeployPoolParams memory p = PlatformRegistry.DeployPoolParams({
+            platformId: platformId,
+            factory: lmsrFactory,
+            saltNonce: 1,
+            pmSystem: ctfAddr,
+            collateralToken: usdc,
+            conditionIds: conditionIds,
+            fee: 2e16,
+            funding: funding,
+            maxCostPerTx: 0
+        });
+
+        vm.prank(kms);
+        pool = registry.deployPool(p);
+    }
+
+    function test_pauseAndResumePool() public {
+        address pool = _deployTestPool();
+
+        vm.prank(kms);
+        registry.pausePool(pool);
+
+        // Pool should be paused (stage != 0)
+        assertEq(IMarketMaker(pool).stage(), 1, "pool should be paused");
+
+        vm.prank(kms);
+        registry.resumePool(pool);
+
+        assertEq(IMarketMaker(pool).stage(), 0, "pool should be running after resume");
+    }
+
+    function test_changePoolMaxCostPerTx() public {
+        address pool = _deployTestPool();
+
+        // Pause before changing maxCostPerTx (required by pool contract)
+        vm.prank(kms);
+        registry.pausePool(pool);
+
+        uint256 newCap = _amount(usdc, 50);
+        vm.prank(kms);
+        registry.changePoolMaxCostPerTx(pool, newCap);
+
+        vm.prank(kms);
+        registry.resumePool(pool);
+
+        assertEq(IMarketMaker(pool).maxCostPerTx(), newCap, "maxCostPerTx should be updated");
+    }
+
+    function test_poolOps_revertIfNotRegistered() public {
+        address fakePool = address(0xDEAD);
+
+        vm.startPrank(kms);
+
+        vm.expectRevert();
+        registry.pausePool(fakePool);
+
+        vm.expectRevert();
+        registry.resumePool(fakePool);
+
+        vm.expectRevert();
+        registry.changePoolMaxCostPerTx(fakePool, 100);
+
+        vm.stopPrank();
+    }
+
+    function test_poolOps_revertIfNotKms() public {
+        address pool = _deployTestPool();
+
+        vm.startPrank(address(0xDEAD));
+
+        vm.expectRevert();
+        registry.pausePool(pool);
+
+        vm.expectRevert();
+        registry.resumePool(pool);
+
+        vm.expectRevert();
+        registry.changePoolMaxCostPerTx(pool, 100);
+
+        vm.stopPrank();
     }
 }
 

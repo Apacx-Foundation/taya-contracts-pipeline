@@ -52,6 +52,9 @@ interface ICappedLMSRPool {
     ) external returns (int256);
     function pmSystem() external view returns (address);
     function withdrawFees() external returns (uint256);
+    function pause() external;
+    function resume() external;
+    function changeMaxCostPerTx(uint256 newMaxCostPerTx) external;
 }
 
 interface IConditionalTokens {
@@ -447,4 +450,24 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
     function addToWhitelist(address[] calldata accounts) external onlyRole(KMS_ROLE) {
         IWhitelist(whitelist).addToWhitelist(accounts);
     }
+
+    // ================================================================
+    // Pool operations (KMS_ROLE) — registry is pool owner
+    // ================================================================
+
+    function pausePool(address pool) external onlyRole(KMS_ROLE) {
+        if (isRegisteredPool[pool] == bytes32(0)) revert PoolNotRegistered();
+        ICappedLMSRPool(pool).pause();
+    }
+
+    function resumePool(address pool) external onlyRole(KMS_ROLE) {
+        if (isRegisteredPool[pool] == bytes32(0)) revert PoolNotRegistered();
+        ICappedLMSRPool(pool).resume();
+    }
+
+    function changePoolMaxCostPerTx(address pool, uint256 newMaxCostPerTx) external onlyRole(KMS_ROLE) {
+        if (isRegisteredPool[pool] == bytes32(0)) revert PoolNotRegistered();
+        ICappedLMSRPool(pool).changeMaxCostPerTx(newMaxCostPerTx);
+    }
+
 }
