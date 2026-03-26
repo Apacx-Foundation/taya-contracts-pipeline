@@ -45,6 +45,7 @@ interface IMarketMaker {
     function owner() external view returns (address);
     function stage() external view returns (uint256);
     function maxCostPerTx() external view returns (uint256);
+    function fee() external view returns (uint64);
 }
 
 // ============================================================================
@@ -575,6 +576,47 @@ contract WithdrawAndFeeTest is ForkBase {
         registry.resumePool(pool);
 
         assertEq(IMarketMaker(pool).maxCostPerTx(), newCap, "maxCostPerTx should be updated");
+    }
+
+    function test_changePoolFee() public {
+        address pool = _deployTestPool();
+
+        vm.prank(kms);
+        registry.pausePool(pool);
+
+        uint64 newFee = 5e16; // 5%
+        vm.prank(kms);
+        registry.changePoolFee(pool, newFee);
+
+        vm.prank(kms);
+        registry.resumePool(pool);
+
+        assertEq(IMarketMaker(pool).fee(), newFee, "fee should be updated");
+    }
+
+    function test_changePoolFee_zeroAndRestore() public {
+        address pool = _deployTestPool();
+        uint64 originalFee = IMarketMaker(pool).fee();
+
+        // Zero fee for bias trade
+        vm.prank(kms);
+        registry.pausePool(pool);
+        vm.prank(kms);
+        registry.changePoolFee(pool, 0);
+        vm.prank(kms);
+        registry.resumePool(pool);
+
+        assertEq(IMarketMaker(pool).fee(), 0, "fee should be 0");
+
+        // Restore
+        vm.prank(kms);
+        registry.pausePool(pool);
+        vm.prank(kms);
+        registry.changePoolFee(pool, originalFee);
+        vm.prank(kms);
+        registry.resumePool(pool);
+
+        assertEq(IMarketMaker(pool).fee(), originalFee, "fee should be restored");
     }
 
     function test_poolOps_revertIfNotRegistered() public {

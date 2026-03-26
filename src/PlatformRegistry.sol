@@ -55,6 +55,8 @@ interface ICappedLMSRPool {
     function pause() external;
     function resume() external;
     function changeMaxCostPerTx(uint256 newMaxCostPerTx) external;
+    function changeFee(uint64 newFee) external;
+    function fee() external view returns (uint64);
 }
 
 interface IConditionalTokens {
@@ -468,6 +470,11 @@ contract PlatformRegistry is Initializable, AccessControl, UUPSUpgradeable, Reen
     function changePoolMaxCostPerTx(address pool, uint256 newMaxCostPerTx) external onlyRole(KMS_ROLE) {
         if (isRegisteredPool[pool] == bytes32(0)) revert PoolNotRegistered();
         ICappedLMSRPool(pool).changeMaxCostPerTx(newMaxCostPerTx);
+    }
+
+    function changePoolFee(address pool, uint64 newFee) external onlyRole(KMS_ROLE) {
+        if (isRegisteredPool[pool] == bytes32(0)) revert PoolNotRegistered();
+        ICappedLMSRPool(pool).changeFee(newFee);
     }
 
 }
