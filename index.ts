@@ -54,6 +54,9 @@ export const DeploymentOutputSchema = z.object({
   whitelist: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  bettingToken: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   deployedAtBlock: z.number() as z.ZodType<number>,
 });
 
