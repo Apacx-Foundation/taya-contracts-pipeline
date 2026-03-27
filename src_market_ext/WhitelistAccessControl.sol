@@ -63,18 +63,24 @@ contract WhitelistAccessControl is Whitelist {
     }
 
     function addAdmin(address account) external onlyAdmin {
-        _admins.add(account);
-        emit AdminAdded(account);
+        if (!_admins.has(account)) {
+            _admins.add(account);
+            emit AdminAdded(account);
+        }
     }
 
     function removeAdmin(address account) external onlyAdmin {
-        _admins.remove(account);
-        emit AdminRemoved(account);
+        if (_admins.has(account)) {
+            _admins.remove(account);
+            emit AdminRemoved(account);
+        }
     }
 
     function renounceAdmin() external {
-        _admins.remove(msg.sender);
-        emit AdminRemoved(msg.sender);
+        if (_admins.has(msg.sender)) {
+            _admins.remove(msg.sender);
+            emit AdminRemoved(msg.sender);
+        }
     }
 
     // ── Whitelister role management ─────────────────────────────────────
@@ -85,19 +91,25 @@ contract WhitelistAccessControl is Whitelist {
 
     /// @notice Whitelisters can add new whitelisters (e.g. KMS adds platform SAs)
     function addWhitelister(address account) external onlyWhitelister {
-        _whitelisters.add(account);
-        emit WhitelisterAdded(account);
+        if (!_whitelisters.has(account)) {
+            _whitelisters.add(account);
+            emit WhitelisterAdded(account);
+        }
     }
 
     /// @notice Only admins can revoke a whitelister
     function removeWhitelister(address account) external onlyAdmin {
-        _whitelisters.remove(account);
-        emit WhitelisterRemoved(account);
+        if (_whitelisters.has(account)) {
+            _whitelisters.remove(account);
+            emit WhitelisterRemoved(account);
+        }
     }
 
     function renounceWhitelister() external {
-        _whitelisters.remove(msg.sender);
-        emit WhitelisterRemoved(msg.sender);
+        if (_whitelisters.has(msg.sender)) {
+            _whitelisters.remove(msg.sender);
+            emit WhitelisterRemoved(msg.sender);
+        }
     }
 
     // ── Whitelist operations (any whitelister or admin) ─────────────────

@@ -35,7 +35,7 @@ contract DeployAdapterDemo is Script {
         bool isDeployerAdmin = false;
         for (uint256 i = 0; i < admins.length; i++) {
             ctfAdapter.addAdmin(admins[i]);
-            // Grant each admin the admin role on the whitelist
+            // Grant each admin the admin role on the whitelist (no-ops on duplicates)
             (bool aOk,) = whitelist.call(abi.encodeWithSignature("addAdmin(address)", admins[i]));
             require(aOk, "whitelist addAdmin failed");
             isDeployerAdmin = isDeployerAdmin || admins[i] == msg.sender;
