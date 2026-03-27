@@ -57,6 +57,7 @@ ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
 FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
 CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
 WHITELIST_ADDRESS=$(jq -r '.whitelist' "$OUTPUT_PATH")
+BETTING_TOKEN_ADDRESS=$(jq -r '.bettingToken' "$OUTPUT_PATH")
 FINDER_ADDRESS=$(jq -r '.uma.finder' "$NETWORK_CONFIG_PATH")
 OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
@@ -67,6 +68,7 @@ echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
 echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
 echo "  CappedLMSRDeterministicFactory: ${CAPPED_LMSR_FACTORY_ADDRESS}"
 echo "  WhitelistAccessControl:         ${WHITELIST_ADDRESS}"
+echo "  BettingToken (proxy):           ${BETTING_TOKEN_ADDRESS}"
 
 if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
   CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
@@ -163,6 +165,17 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --watch \
     "$WHITELIST_ADDRESS" \
     "src_market_ext/WhitelistAccessControl.sol:WhitelistAccessControl"
+
+  # Verify BettingToken implementation (UUPS proxy — verify the impl, not the proxy)
+  FOUNDRY_PROFILE=default
+  forge verify-contract \
+    --chain-id "$CHAIN_ID" \
+    --compiler-version "0.8.15" \
+    --etherscan-api-key "$ETHERSCAN_API_KEY" \
+    "$BETTING_TOKEN_ADDRESS" \
+    --root "." \
+    --watch \
+    "src/BettingToken.sol:BettingToken"
 else
   echo "⚠️  Skipping verification; ETHERSCAN_API_KEY is not set."
 fi

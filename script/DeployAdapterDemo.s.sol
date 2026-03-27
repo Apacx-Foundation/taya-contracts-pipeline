@@ -6,6 +6,8 @@ import {console2} from "forge-std/console2.sol";
 
 import {UmaCtfAdapterDemo} from "taya-uma-ctf-adapter/UmaCtfAdapterDemo.sol";
 import {UmaCtfAdapterGate} from "../src/UmaCtfAdapterGate.sol";
+import {BettingToken} from "../src/BettingToken.sol";
+import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {DeploymentHelper, DeployResult, DeployParams} from "./DeploymentHelper.sol";
 
 contract DeployAdapterDemo is Script {
@@ -24,11 +26,13 @@ contract DeployAdapterDemo is Script {
         address ctf = vm.deployCode("out_ctf/ConditionalTokens.sol/ConditionalTokens.json");
         address fpmmFactory = vm.deployCode("out_market/FPMMDeterministicFactory.sol/FPMMDeterministicFactory.json");
         // Note: CappedLMSRDeterministicFactory requires Fixed192x64Math library to be pre-linked via --libraries flag
-        address cappedLmsrFactory = vm.deployCode("out_market_ext/CappedLMSRDeterministicFactory.sol/CappedLMSRDeterministicFactory.json");
+        address cappedLmsrFactory =
+            vm.deployCode("out_market_ext/CappedLMSRDeterministicFactory.sol/CappedLMSRDeterministicFactory.json");
         address whitelist = vm.deployCode("out_market_ext/WhitelistAccessControl.sol/WhitelistAccessControl.json");
 
         UmaCtfAdapterDemo ctfAdapter = new UmaCtfAdapterDemo(ctf, finder, oo);
         UmaCtfAdapterGate ctfAdapterGate = new UmaCtfAdapterGate(address(ctfAdapter));
+        address bettingTokenAddr = _deployBettingToken(admins);
 
         // Add admin auth to the Admin addresses and the gate
         ctfAdapter.addAdmin(address(ctfAdapterGate));
@@ -60,6 +64,7 @@ contract DeployAdapterDemo is Script {
             fpmmFactory: fpmmFactory,
             cappedLmsrFactory: cappedLmsrFactory,
             whitelist: whitelist,
+            bettingToken: bettingTokenAddr,
             deployedAtBlock: block.number
         });
 
@@ -69,6 +74,23 @@ contract DeployAdapterDemo is Script {
         console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
         console2.log("CappedLMSRDeterministicFactory deployed at:", result.cappedLmsrFactory);
         console2.log("WhitelistAccessControl deployed at:", result.whitelist);
+        console2.log("BettingToken deployed at:", result.bettingToken);
+    }
+
+    function _deployBettingToken(address[] memory admins) internal returns (address) {
+        BettingToken impl = new BettingToken();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(BettingToken.initialize.selector, "Betting Token", "BET", admins[0])
+        );
+        BettingToken token = BettingToken(address(proxy));
+        bool isDeployerAdmin = false;
+        for (uint256 i = 1; i < admins.length; i++) {
+            token.grantRole(token.DEFAULT_ADMIN_ROLE(), admins[i]);
+            isDeployerAdmin = isDeployerAdmin || admins[i] == msg.sender;
+        }
+        if (!isDeployerAdmin) token.renounceRole(token.DEFAULT_ADMIN_ROLE(), msg.sender);
+
+        return address(proxy);
     }
 
     function _verifyStatePostDeployment(address admin, address ctf, address adapter, address gate, address whitelist)
