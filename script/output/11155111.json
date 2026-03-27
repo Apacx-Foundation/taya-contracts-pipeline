@@ -1,9 +1,9 @@
 {
-  "cappedLmsrFactory": "0x569fD909F9bA4f640C8467b511ac832fB094f78c",
-  "ctf": "0xB54E58FEaDB52aE998ee0aDBb8F08F6DCEc2F735",
-  "deployedAtBlock": 10510153,
-  "fpmmFactory": "0x76e6Fc7033a732eEDAE7c6Bf099bB9A164dDe620",
-  "umaAdapter": "0x03C014267DbB69Ca12e2Bce1297167bd35978649",
-  "umaAdapterGate": "0x7e420ad04b3FEAB218Ac34ea3570E8941c3Be97F",
-  "whitelistFactory": "0xcB91edd9ebD665feaaA1713850d23F2a091804C4"
+  "cappedLmsrFactory": "0x29B521DD2f4DFE456b5cf24b61549d8e16079F0f",
+  "ctf": "0x0B0adD57998b505bDc2919605cEacECA5259Bd45",
+  "deployedAtBlock": 10532699,
+  "fpmmFactory": "0x5EB9ca5F9E1D5938619ec5Bf645e9D045b0bB109",
+  "umaAdapter": "0x3a47961631fd65aF41A07b1fbd5D3b2450718b46",
+  "umaAdapterGate": "0xd34Cc3deC24d25D2136Af2B1F5108bBeD13E4122",
+  "whitelist": "0xcA7067f7C67E95cC21eF83b90283D02b0E74379F"
 }
