@@ -23,8 +23,10 @@ contract BettingTokenTest is Test {
     function setUp() public {
         admin = address(this);
         impl = new BettingToken();
+        address[] memory admins = new address[](1);
+        admins[0] = admin;
         bytes memory initData =
-            abi.encodeWithSelector(BettingToken.initialize.selector, "Betting Token", "BET", admin);
+            abi.encodeWithSelector(BettingToken.initialize.selector, "Betting Token", "BET", admins);
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         token = BettingToken(address(proxy));
     }
@@ -41,13 +43,17 @@ contract BettingTokenTest is Test {
     }
 
     function testCannotInitializeTwice() public {
+        address[] memory admins = new address[](1);
+        admins[0] = alice;
         vm.expectRevert("Initializable: contract is already initialized");
-        token.initialize("Other", "OTH", alice);
+        token.initialize("Other", "OTH", admins);
     }
 
     function testImplCannotBeInitialized() public {
+        address[] memory admins = new address[](1);
+        admins[0] = alice;
         vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize("Other", "OTH", alice);
+        impl.initialize("Other", "OTH", admins);
     }
 
     // ---- Name / Symbol ----

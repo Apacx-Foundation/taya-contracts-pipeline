@@ -32,13 +32,15 @@ contract BettingToken is Initializable, ERC20, AccessControl, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(string calldata name_, string calldata symbol_, address defaultAdmin) external initializer {
+    function initialize(string calldata name_, string calldata symbol_, address[] calldata admins) external initializer {
         _tokenName = name_;
         _tokenSymbol = symbol_;
 
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(MINTER_ROLE, defaultAdmin);
-        _grantRole(BLACKLISTER_ROLE, defaultAdmin);
+        for (uint256 i = 0; i < admins.length; i++) {
+            _grantRole(DEFAULT_ADMIN_ROLE, admins[i]);
+            _grantRole(MINTER_ROLE, admins[i]);
+            _grantRole(BLACKLISTER_ROLE, admins[i]);
+        }
     }
 
     function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}

@@ -80,16 +80,8 @@ contract DeployAdapterDemo is Script {
     function _deployBettingToken(address[] memory admins) internal returns (address) {
         BettingToken impl = new BettingToken();
         ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(BettingToken.initialize.selector, "Betting Token", "BET", admins[0])
+            address(impl), abi.encodeWithSelector(BettingToken.initialize.selector, "Betting Token", "BET", admins)
         );
-        BettingToken token = BettingToken(address(proxy));
-        bool isDeployerAdmin = false;
-        for (uint256 i = 1; i < admins.length; i++) {
-            token.grantRole(token.DEFAULT_ADMIN_ROLE(), admins[i]);
-            isDeployerAdmin = isDeployerAdmin || admins[i] == msg.sender;
-        }
-        if (!isDeployerAdmin) token.renounceRole(token.DEFAULT_ADMIN_ROLE(), msg.sender);
-
         return address(proxy);
     }
 
