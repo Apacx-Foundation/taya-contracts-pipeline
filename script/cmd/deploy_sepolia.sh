@@ -51,6 +51,9 @@ forge script ./script/DeployAdapterDemo.s.sol \
   --private-key="$PRIVATE_KEY" \
   --isolate
 
+# Inject fixedMathLib into output JSON (deployed via forge create, not forge script)
+jq --arg addr "$FIXED_MATH_LIB_ADDRESS" '. + {fixedMathLib: $addr}' "$OUTPUT_PATH" > "${OUTPUT_PATH}.tmp" && mv "${OUTPUT_PATH}.tmp" "$OUTPUT_PATH"
+
 CTF_ADDRESS=$(jq -r '.ctf' "$OUTPUT_PATH")
 ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
 ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
