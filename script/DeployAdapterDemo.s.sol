@@ -25,7 +25,7 @@ contract DeployAdapterDemo is Script {
         address fpmmFactory = vm.deployCode("out_market/FPMMDeterministicFactory.sol/FPMMDeterministicFactory.json");
         // Note: CappedLMSRDeterministicFactory requires Fixed192x64Math library to be pre-linked via --libraries flag
         address cappedLmsrFactory = vm.deployCode("out_market_ext/CappedLMSRDeterministicFactory.sol/CappedLMSRDeterministicFactory.json");
-        address whitelistFactory = vm.deployCode("out_market_ext/WhitelistFactory.sol/WhitelistFactory.json");
+        address whitelist = vm.deployCode("out_market_ext/WhitelistAccessControl.sol/WhitelistAccessControl.json");
 
         UmaCtfAdapterDemo ctfAdapter = new UmaCtfAdapterDemo(ctf, finder, oo);
         UmaCtfAdapterGate ctfAdapterGate = new UmaCtfAdapterGate(address(ctfAdapter));
@@ -35,15 +35,23 @@ contract DeployAdapterDemo is Script {
         bool isDeployerAdmin = false;
         for (uint256 i = 0; i < admins.length; i++) {
             ctfAdapter.addAdmin(admins[i]);
+            // Grant each admin the admin role on the whitelist
+            (bool aOk,) = whitelist.call(abi.encodeWithSignature("addAdmin(address)", admins[i]));
+            require(aOk, "whitelist addAdmin failed");
             isDeployerAdmin = isDeployerAdmin || admins[i] == msg.sender;
         }
-        // revoke deployer's auth
+        // Deployer renounces whitelist admin if not in admins list
+        if (!isDeployerAdmin) {
+            (bool rOk,) = whitelist.call(abi.encodeWithSignature("renounceAdmin()"));
+            require(rOk, "whitelist renounceAdmin failed");
+        }
+        // revoke deployer's adapter auth
         if (!isDeployerAdmin) ctfAdapter.renounceAdmin();
         vm.stopBroadcast();
 
         // Verify
         for (uint256 i = 0; i < admins.length; i++) {
-            _verifyStatePostDeployment(admins[i], ctf, address(ctfAdapter), address(ctfAdapterGate));
+            _verifyStatePostDeployment(admins[i], ctf, address(ctfAdapter), address(ctfAdapterGate), whitelist);
         }
         result = DeployResult({
             ctf: ctf,
@@ -51,7 +59,7 @@ contract DeployAdapterDemo is Script {
             umaCtfAdapterGate: address(ctfAdapterGate),
             fpmmFactory: fpmmFactory,
             cappedLmsrFactory: cappedLmsrFactory,
-            whitelistFactory: whitelistFactory,
+            whitelist: whitelist,
             deployedAtBlock: block.number
         });
 
@@ -60,10 +68,10 @@ contract DeployAdapterDemo is Script {
         console2.log("UmaCtfAdapterGate deployed at:", result.umaCtfAdapterGate);
         console2.log("FPMMDeterministicFactory deployed at:", result.fpmmFactory);
         console2.log("CappedLMSRDeterministicFactory deployed at:", result.cappedLmsrFactory);
-        console2.log("WhitelistFactory deployed at:", result.whitelistFactory);
+        console2.log("WhitelistAccessControl deployed at:", result.whitelist);
     }
 
-    function _verifyStatePostDeployment(address admin, address ctf, address adapter, address gate)
+    function _verifyStatePostDeployment(address admin, address ctf, address adapter, address gate, address whitelist)
         internal
         view
         returns (bool)
@@ -75,6 +83,14 @@ contract DeployAdapterDemo is Script {
         if (!ctfAdapter.isAdmin(gate)) revert("Adapter gate admin not set");
         if (address(ctfAdapter.ctf()) != ctf) revert("Unexpected ConditionalTokensFramework set on adapter");
         if (address(ctfAdapterGate.adapter()) != adapter) revert("Unexpected adapter set on gate");
+
+        // Verify whitelist admin role
+        (bool ok, bytes memory ret) = whitelist.staticcall(abi.encodeWithSignature("isAdmin(address)", admin));
+        if (!ok || !abi.decode(ret, (bool))) revert("Whitelist admin not set");
+
+        // Verify whitelist is not yet initialized (KMS does this at runtime)
+        (bool ok2, bytes memory ret2) = whitelist.staticcall(abi.encodeWithSignature("initialized()"));
+        if (!ok2 || abi.decode(ret2, (bool))) revert("Whitelist should not be initialized at deploy time");
 
         return true;
     }
