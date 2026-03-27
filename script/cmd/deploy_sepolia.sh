@@ -56,7 +56,7 @@ ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
 ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
 FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
 CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
-WHITELIST_FACTORY_ADDRESS=$(jq -r '.whitelistFactory' "$OUTPUT_PATH")
+WHITELIST_ADDRESS=$(jq -r '.whitelist' "$OUTPUT_PATH")
 FINDER_ADDRESS=$(jq -r '.uma.finder' "$NETWORK_CONFIG_PATH")
 OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
@@ -66,7 +66,7 @@ echo "  UmaCtfAdapterDemo:              ${ADAPTER_ADDRESS}"
 echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
 echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
 echo "  CappedLMSRDeterministicFactory: ${CAPPED_LMSR_FACTORY_ADDRESS}"
-echo "  WhitelistFactory:               ${WHITELIST_FACTORY_ADDRESS}"
+echo "  WhitelistAccessControl:         ${WHITELIST_ADDRESS}"
 
 if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
   CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
@@ -161,8 +161,8 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --num-of-optimizations 200 \
     --evm-version "petersburg" \
     --watch \
-    "$WHITELIST_FACTORY_ADDRESS" \
-    "src_market_ext/WhitelistFactory.sol:WhitelistFactory"
+    "$WHITELIST_ADDRESS" \
+    "src_market_ext/WhitelistAccessControl.sol:WhitelistAccessControl"
 else
   echo "⚠️  Skipping verification; ETHERSCAN_API_KEY is not set."
 fi
