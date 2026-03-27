@@ -51,7 +51,7 @@ export const DeploymentOutputSchema = z.object({
   umaAdapterGate: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  whitelistFactory: z
+  whitelist: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   deployedAtBlock: z.number() as z.ZodType<number>,
