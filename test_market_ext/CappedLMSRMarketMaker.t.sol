@@ -7,7 +7,7 @@ import {CappedLMSRDeterministicFactory} from "../src_market_ext/CappedLMSRDeterm
 import {LMSRMarketMaker} from "market-makers/LMSRMarketMaker.sol";
 import {LMSRMarketMakerFactory} from "market-makers/LMSRMarketMakerFactory.sol";
 import {Whitelist} from "market-makers/Whitelist.sol";
-import {WhitelistFactory} from "../src_market_ext/WhitelistFactory.sol";
+import {WhitelistAccessControl} from "../src_market_ext/WhitelistAccessControl.sol";
 import {Fixed192x64Math} from "@gnosis.pm/util-contracts/contracts/Fixed192x64Math.sol";
 
 /// @title Test collateral token for CappedLMSR tests
@@ -327,15 +327,15 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         mm.trade(amounts, 0);
     }
 
-    function test_whitelistFactoryIntegration() public {
-        // Create whitelist via factory with this contract pre-whitelisted
-        WhitelistFactory wlFactory = new WhitelistFactory();
+    function test_whitelistAccessControlIntegration() public {
+        // Create WhitelistAccessControl directly and whitelist this contract
+        WhitelistAccessControl wl = new WhitelistAccessControl();
         address[] memory users = new address[](1);
         users[0] = address(this);
-        Whitelist wl = wlFactory.createWhitelistWithUsers(users);
+        wl.whitelisterAdd(users);
 
-        // Use the factory-created whitelist with a market
-        CappedLMSRMarketMaker mm = createBinaryMarketWithWhitelist(1000 * ONE, wl);
+        // Use the whitelist with a market
+        CappedLMSRMarketMaker mm = createBinaryMarketWithWhitelist(1000 * ONE, Whitelist(address(wl)));
         collateral.approve(address(mm), uint256(-1));
 
         int256[] memory amounts = new int256[](2);
