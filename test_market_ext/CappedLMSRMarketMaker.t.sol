@@ -197,8 +197,9 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         collateral.approve(address(factory), uint256(-1));
         collateral.approve(address(lmsrFactory), uint256(-1));
 
-        CappedLMSRMarketMaker capped =
-            factory.create2CappedLMSRMarketMaker(saltNonce++, ctf, collateral, conditionIds, 0, Whitelist(0), funding, 0);
+        CappedLMSRMarketMaker capped = factory.create2CappedLMSRMarketMaker(
+            saltNonce++, ctf, collateral, conditionIds, 0, Whitelist(0), funding, 0
+        );
 
         LMSRMarketMaker lmsr =
             lmsrFactory.createLMSRMarketMaker(ctf, collateral, conditionIds, 0, Whitelist(0), funding);
@@ -332,7 +333,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         WhitelistAccessControl wl = new WhitelistAccessControl();
         address[] memory users = new address[](1);
         users[0] = address(this);
-        wl.whitelisterAdd(users);
+        wl.addToWhitelist(users);
 
         // Use the whitelist with a market
         CappedLMSRMarketMaker mm = createBinaryMarketWithWhitelist(1000 * ONE, Whitelist(address(wl)));
@@ -417,9 +418,8 @@ contract CappedLMSRMarketMakerTest is TestUtils {
 
         collateral.approve(address(factory), funding);
 
-        CappedLMSRMarketMaker mm = factory.create2CappedLMSRMarketMaker(
-            saltNonce++, ctf, collateral, conditionIds, 0, wl, funding, maxCap
-        );
+        CappedLMSRMarketMaker mm =
+            factory.create2CappedLMSRMarketMaker(saltNonce++, ctf, collateral, conditionIds, 0, wl, funding, maxCap);
 
         {
             // --- Ownable slot ---
@@ -495,9 +495,8 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         bytes32[] memory conditionIds = createTwoBinaryConditions(funding);
 
         collateral.approve(address(factory), funding);
-        CappedLMSRMarketMaker mm = factory.create2CappedLMSRMarketMaker(
-            saltNonce++, ctf, collateral, conditionIds, 0, wl, funding, maxCap
-        );
+        CappedLMSRMarketMaker mm =
+            factory.create2CappedLMSRMarketMaker(saltNonce++, ctf, collateral, conditionIds, 0, wl, funding, maxCap);
 
         // Validate multi-condition storage-backed fields.
         assertTrue(mm.conditionIds(0) == conditionIds[0], "multi: conditionIds[0]");
@@ -571,7 +570,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         mm.trade(sellAmounts, 0);
 
         // Trade with 5% surcharge from same state
-        uint64 surchargeRate = uint64(5 * 10**16);
+        uint64 surchargeRate = uint64(5 * 10 ** 16);
         int256 surchargeCost = mm.tradeWithSurcharge(amounts, 0, surchargeRate, false);
 
         assertTrue(surchargeCost > plainCost, "surcharge should increase cost");
@@ -587,7 +586,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         amounts[0] = int256(10 * ONE);
         amounts[1] = 0;
 
-        uint64 surchargeRate = uint64(5 * 10**16);
+        uint64 surchargeRate = uint64(5 * 10 ** 16);
         mm.tradeWithSurcharge(amounts, 0, surchargeRate, false);
 
         assertEq(uint256(mm.fee()), uint256(originalFee), "fee should be restored after tradeWithSurcharge");
@@ -598,7 +597,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         CappedLMSRMarketMaker mm = createBinaryMarket(1000 * ONE);
         collateral.approve(address(mm), uint256(-1));
 
-        uint64 baseFee = uint64(2 * 10**16); // 2%
+        uint64 baseFee = uint64(2 * 10 ** 16); // 2%
         mm.pause();
         mm.changeFee(baseFee);
         mm.resume();
@@ -607,7 +606,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         amounts[0] = int256(10 * ONE);
         amounts[1] = 0;
 
-        uint64 surchargeRate = uint64(3 * 10**16); // 3% surcharge on top of 2% base
+        uint64 surchargeRate = uint64(3 * 10 ** 16); // 3% surcharge on top of 2% base
         mm.tradeWithSurcharge(amounts, 0, surchargeRate, false);
 
         assertEq(uint256(mm.fee()), uint256(baseFee), "base fee should be restored");
@@ -621,7 +620,7 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         amounts[0] = int256(10 * ONE);
         amounts[1] = 0;
 
-        int256 cost = mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10**16), false);
+        int256 cost = mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10 ** 16), false);
 
         assertTrue(cost > 0, "cost should be positive");
         // lossUsed and cumulativeNetCost track fee-stripped outcomeTokenNetCost, not netCost
@@ -642,9 +641,12 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         amounts[0] = int256(10 * ONE);
         amounts[1] = 0;
 
-        (bool success,) = address(mm).call(
-            abi.encodeWithSignature("tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), uint64(0), false)
-        );
+        (bool success,) = address(mm)
+            .call(
+                abi.encodeWithSignature(
+                    "tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), uint64(0), false
+                )
+            );
         assertTrue(!success, "tradeWithSurcharge should revert when cost exceeds maxCostPerTx");
     }
 
@@ -657,9 +659,12 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         amounts[0] = int256(10 * ONE);
         amounts[1] = 0;
 
-        (bool success,) = address(mm).call(
-            abi.encodeWithSignature("tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), uint64(0), false)
-        );
+        (bool success,) = address(mm)
+            .call(
+                abi.encodeWithSignature(
+                    "tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), uint64(0), false
+                )
+            );
         assertTrue(!success, "tradeWithSurcharge should revert when paused");
     }
 
@@ -672,14 +677,14 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         int256[] memory amounts = new int256[](2);
         amounts[0] = int256(10 * ONE);
         amounts[1] = 0;
-        mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10**16), false);
+        mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10 ** 16), false);
         uint256 lossAfterBuy = mm.lossUsed();
         assertTrue(lossAfterBuy > 0, "lossUsed should be positive after buy");
 
         // Sell back with surcharge
         amounts[0] = -int256(5 * ONE);
         amounts[1] = 0;
-        int256 sellCost = mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10**16), false);
+        int256 sellCost = mm.tradeWithSurcharge(amounts, 0, uint64(5 * 10 ** 16), false);
 
         assertTrue(sellCost < 0, "sell should return collateral");
         assertTrue(mm.cumulativeNetCost() < int256(lossAfterBuy), "cumulativeNetCost should decrease after sell");
@@ -720,9 +725,12 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         // max uint64 should overflow when added to fee of 1
         uint64 maxSurcharge = uint64(-1); // 2^64 - 1
 
-        (bool success,) = address(mm).call(
-            abi.encodeWithSignature("tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), maxSurcharge, false)
-        );
+        (bool success,) = address(mm)
+            .call(
+                abi.encodeWithSignature(
+                    "tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), maxSurcharge, false
+                )
+            );
         assertTrue(!success, "tradeWithSurcharge should revert on surcharge overflow");
     }
 
@@ -777,9 +785,12 @@ contract CappedLMSRMarketMakerTest is TestUtils {
         amounts[0] = int256(10 * ONE);
         amounts[1] = 0;
 
-        (bool success,) = address(mm).call(
-            abi.encodeWithSignature("tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), uint64(0), false)
-        );
+        (bool success,) = address(mm)
+            .call(
+                abi.encodeWithSignature(
+                    "tradeWithSurcharge(int256[],int256,uint64,bool)", amounts, int256(0), uint64(0), false
+                )
+            );
         assertTrue(!success, "tradeWithSurcharge should revert for non-whitelisted address");
     }
 

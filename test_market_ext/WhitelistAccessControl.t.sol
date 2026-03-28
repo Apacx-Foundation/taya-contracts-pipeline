@@ -10,10 +10,6 @@ contract ExternalCaller {
         wl = _wl;
     }
 
-    function tryInitialize() external {
-        wl.initialize();
-    }
-
     function tryAddAdmin(address account) external {
         wl.addAdmin(account);
     }
@@ -30,12 +26,12 @@ contract ExternalCaller {
         wl.removeWhitelister(account);
     }
 
-    function tryWhitelisterAdd(address[] calldata users) external {
-        wl.whitelisterAdd(users);
+    function tryaddToWhitelist(address[] calldata users) external {
+        wl.addToWhitelist(users);
     }
 
-    function tryWhitelisterRemove(address[] calldata users) external {
-        wl.whitelisterRemove(users);
+    function tryremoveFromWhitelist(address[] calldata users) external {
+        wl.removeFromWhitelist(users);
     }
 
     function tryRenounceWhitelister() external {
@@ -71,28 +67,6 @@ contract WhitelistAccessControlTest {
         emit TestPassed("test_isWhitelistSubtype");
     }
 
-    // ── Initialize ──────────────────────────────────────────────────────
-
-    function test_initializeSetsWhitelister() public {
-        ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
-        assertTrue(wl.initialized(), "should be initialized");
-        assertTrue(wl.isWhitelister(address(kms)), "kms should be whitelister");
-        emit TestPassed("test_initializeSetsWhitelister");
-    }
-
-    function test_initializeCanOnlyBeCalledOnce() public {
-        ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
-
-        ExternalCaller kms2 = new ExternalCaller(wl);
-        (bool success,) = address(kms2).call(
-            abi.encodeWithSelector(kms2.tryInitialize.selector)
-        );
-        assertTrue(!success, "second initialize should revert");
-        emit TestPassed("test_initializeCanOnlyBeCalledOnce");
-    }
-
     // ── Admin role ──────────────────────────────────────────────────────
 
     function test_deployerIsAdmin() public {
@@ -121,17 +95,14 @@ contract WhitelistAccessControlTest {
     }
 
     function test_nonAdminCannotAddAdmin() public {
-        (bool success,) = address(stranger).call(
-            abi.encodeWithSelector(stranger.tryAddAdmin.selector, address(0x9999))
-        );
+        (bool success,) = address(stranger).call(abi.encodeWithSelector(stranger.tryAddAdmin.selector, address(0x9999)));
         assertTrue(!success, "non-admin addAdmin should revert");
         emit TestPassed("test_nonAdminCannotAddAdmin");
     }
 
     function test_nonAdminCannotRemoveAdmin() public {
-        (bool success,) = address(stranger).call(
-            abi.encodeWithSelector(stranger.tryRemoveAdmin.selector, address(this))
-        );
+        (bool success,) =
+            address(stranger).call(abi.encodeWithSelector(stranger.tryRemoveAdmin.selector, address(this)));
         assertTrue(!success, "non-admin removeAdmin should revert");
         emit TestPassed("test_nonAdminCannotRemoveAdmin");
     }
@@ -142,10 +113,10 @@ contract WhitelistAccessControlTest {
         address[] memory users = new address[](1);
         users[0] = address(0xBEEF);
 
-        wl.whitelisterAdd(users);
+        wl.addToWhitelist(users);
         assertTrue(wl.isWhitelisted(address(0xBEEF)), "should be whitelisted");
 
-        wl.whitelisterRemove(users);
+        wl.removeFromWhitelist(users);
         assertTrue(!wl.isWhitelisted(address(0xBEEF)), "should not be whitelisted");
         emit TestPassed("test_adminCanWhitelist");
     }
@@ -154,7 +125,7 @@ contract WhitelistAccessControlTest {
 
     function test_whitelisterCanAddWhitelister() public {
         ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
+        wl.addWhitelister(address(kms));
 
         ExternalCaller platformSA = new ExternalCaller(wl);
         kms.tryAddWhitelister(address(platformSA));
@@ -164,22 +135,21 @@ contract WhitelistAccessControlTest {
 
     function test_whitelisterCannotRevokeWhitelister() public {
         ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
+        wl.addWhitelister(address(kms));
 
         ExternalCaller platformSA = new ExternalCaller(wl);
         kms.tryAddWhitelister(address(platformSA));
 
         // kms tries to revoke platformSA — should fail (onlyAdmin)
-        (bool success,) = address(kms).call(
-            abi.encodeWithSelector(kms.tryRemoveWhitelister.selector, address(platformSA))
-        );
+        (bool success,) =
+            address(kms).call(abi.encodeWithSelector(kms.tryRemoveWhitelister.selector, address(platformSA)));
         assertTrue(!success, "whitelister should not be able to revoke");
         emit TestPassed("test_whitelisterCannotRevokeWhitelister");
     }
 
     function test_adminCanRevokeWhitelister() public {
         ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
+        wl.addWhitelister(address(kms));
 
         // Admin revokes kms
         wl.removeWhitelister(address(kms));
@@ -189,19 +159,19 @@ contract WhitelistAccessControlTest {
 
     function test_whitelisterCanManageUsers() public {
         ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
+        wl.addWhitelister(address(kms));
 
         address[] memory users = new address[](2);
         users[0] = address(0x1111);
         users[1] = address(0x2222);
 
-        kms.tryWhitelisterAdd(users);
+        kms.tryaddToWhitelist(users);
         assertTrue(wl.isWhitelisted(address(0x1111)), "user1 should be whitelisted");
         assertTrue(wl.isWhitelisted(address(0x2222)), "user2 should be whitelisted");
 
         address[] memory toRemove = new address[](1);
         toRemove[0] = address(0x1111);
-        kms.tryWhitelisterRemove(toRemove);
+        kms.tryremoveFromWhitelist(toRemove);
         assertTrue(!wl.isWhitelisted(address(0x1111)), "user1 should be removed");
         assertTrue(wl.isWhitelisted(address(0x2222)), "user2 still whitelisted");
         emit TestPassed("test_whitelisterCanManageUsers");
@@ -209,7 +179,7 @@ contract WhitelistAccessControlTest {
 
     function test_renounceWhitelister() public {
         ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
+        wl.addWhitelister(address(kms));
         kms.tryRenounceWhitelister();
         assertTrue(!wl.isWhitelister(address(kms)), "should no longer be whitelister");
         emit TestPassed("test_renounceWhitelister");
@@ -221,9 +191,7 @@ contract WhitelistAccessControlTest {
         address[] memory users = new address[](1);
         users[0] = address(0xDEAD);
 
-        (bool success,) = address(stranger).call(
-            abi.encodeWithSelector(stranger.tryWhitelisterAdd.selector, users)
-        );
+        (bool success,) = address(stranger).call(abi.encodeWithSelector(stranger.tryaddToWhitelist.selector, users));
         assertTrue(!success, "stranger add should revert");
         emit TestPassed("test_strangerCannotAdd");
     }
@@ -232,29 +200,27 @@ contract WhitelistAccessControlTest {
         address[] memory users = new address[](1);
         users[0] = address(0xDEAD);
 
-        (bool success,) = address(stranger).call(
-            abi.encodeWithSelector(stranger.tryWhitelisterRemove.selector, users)
-        );
+        (bool success,) =
+            address(stranger).call(abi.encodeWithSelector(stranger.tryremoveFromWhitelist.selector, users));
         assertTrue(!success, "stranger remove should revert");
         emit TestPassed("test_strangerCannotRemove");
     }
 
     function test_strangerCannotAddWhitelister() public {
-        (bool success,) = address(stranger).call(
-            abi.encodeWithSelector(stranger.tryAddWhitelister.selector, address(0x9999))
-        );
+        (bool success,) =
+            address(stranger).call(abi.encodeWithSelector(stranger.tryAddWhitelister.selector, address(0x9999)));
         assertTrue(!success, "stranger addWhitelister should revert");
         emit TestPassed("test_strangerCannotAddWhitelister");
     }
 
-    // ── Full flow: deploy → initialize → add platform SA → trade ────────
+    // ── Full flow: deploy → add whitelister → add platform SA → trade ──
 
     function test_fullFlow() public {
         // 1. Deploy time: admins are set (this contract is admin via constructor)
 
-        // 2. KMS initializes
+        // 2. Admin adds KMS as whitelister
         ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
+        wl.addWhitelister(address(kms));
         assertTrue(wl.isWhitelister(address(kms)), "kms is whitelister");
 
         // 3. KMS adds platform SA as whitelister
@@ -265,7 +231,7 @@ contract WhitelistAccessControlTest {
         // 4. Platform SA whitelists a user
         address[] memory users = new address[](1);
         users[0] = address(0xAAAA);
-        platformSA.tryWhitelisterAdd(users);
+        platformSA.tryaddToWhitelist(users);
         assertTrue(wl.isWhitelisted(address(0xAAAA)), "user whitelisted by platformSA");
 
         // 5. Admin revokes compromised KMS
@@ -275,7 +241,7 @@ contract WhitelistAccessControlTest {
         // 6. Platform SA still works
         address[] memory users2 = new address[](1);
         users2[0] = address(0xBBBB);
-        platformSA.tryWhitelisterAdd(users2);
+        platformSA.tryaddToWhitelist(users2);
         assertTrue(wl.isWhitelisted(address(0xBBBB)), "platformSA still works after kms revoke");
 
         emit TestPassed("test_fullFlow");
@@ -284,20 +250,18 @@ contract WhitelistAccessControlTest {
     /// @notice After revoking a whitelister, they can no longer manage users
     function test_revokedWhitelisterBlocked() public {
         ExternalCaller kms = new ExternalCaller(wl);
-        kms.tryInitialize();
+        wl.addWhitelister(address(kms));
 
         address[] memory users = new address[](1);
         users[0] = address(0xFACE);
-        kms.tryWhitelisterAdd(users);
+        kms.tryaddToWhitelist(users);
         assertTrue(wl.isWhitelisted(address(0xFACE)), "should be whitelisted");
 
         wl.removeWhitelister(address(kms));
 
         address[] memory users2 = new address[](1);
         users2[0] = address(0xFEED);
-        (bool success,) = address(kms).call(
-            abi.encodeWithSelector(kms.tryWhitelisterAdd.selector, users2)
-        );
+        (bool success,) = address(kms).call(abi.encodeWithSelector(kms.tryaddToWhitelist.selector, users2));
         assertTrue(!success, "revoked whitelister should not be able to add");
         emit TestPassed("test_revokedWhitelisterBlocked");
     }
