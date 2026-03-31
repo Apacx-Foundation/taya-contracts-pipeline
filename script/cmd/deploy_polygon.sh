@@ -45,7 +45,7 @@ FOUNDRY_PROFILE=market_ext forge build --force \
   --libraries "${FIXED_MATH_LIB_PATH}:${FIXED_MATH_LIB_ADDRESS}"
 
 FOUNDRY_PROFILE=default
-forge script ./script/DeployAdapterDemo.s.sol \
+forge script ./script/DeployAdapter.s.sol \
   --rpc-url "$POLYGON_RPC_URL" \
   --broadcast \
   --private-key="$PRIVATE_KEY" \
@@ -66,7 +66,7 @@ OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
 echo "✓ Deployments"
 echo "  ConditionalTokens:              ${CTF_ADDRESS}"
-echo "  UmaCtfAdapterDemo:              ${ADAPTER_ADDRESS}"
+echo "  UmaCtfAdapter:              ${ADAPTER_ADDRESS}"
 echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
 echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
 echo "  CappedLMSRDeterministicFactory: ${CAPPED_LMSR_FACTORY_ADDRESS}"
@@ -85,8 +85,8 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     "$ADAPTER_ADDRESS" \
     --root "lib/taya-uma-ctf-adapter" \
     --watch \
-    "src/UmaCtfAdapterDemo.sol:UmaCtfAdapterDemo"
-    
+    "src/UmaCtfAdapter.sol:UmaCtfAdapter"
+  
   FOUNDRY_PROFILE=default
   forge verify-contract \
     --chain-id "$CHAIN_ID" \

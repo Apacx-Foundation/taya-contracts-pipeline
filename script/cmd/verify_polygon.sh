@@ -40,19 +40,6 @@ echo "Verifying contracts on chain ${CHAIN_ID}..."
 echo "  BettingToken proxy: ${BETTING_TOKEN_PROXY}"
 echo "  BettingToken impl:  ${BETTING_TOKEN_IMPL}"
 
-# --- UmaCtfAdapterDemo ---
-CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
-FOUNDRY_PROFILE=default
-forge verify-contract \
-  --chain-id "$CHAIN_ID" \
-  --compiler-version "0.8.15" \
-  --constructor-args "$CONSTRUCTOR_ARGS" \
-  --etherscan-api-key "$ETHERSCAN_API_KEY" \
-  "$ADAPTER_ADDRESS" \
-  --root "lib/taya-uma-ctf-adapter" \
-  --watch \
-  "src/UmaCtfAdapterDemo.sol:UmaCtfAdapterDemo"
-
 # --- UmaCtfAdapterGate ---
 FOUNDRY_PROFILE=default
 forge verify-contract \
@@ -151,5 +138,17 @@ forge verify-contract \
   --root "." \
   --watch \
   "src/BettingToken.sol:BettingToken"
+
+# --- UmaCtfAdapter (current deployment) ---
+CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
+FOUNDRY_PROFILE=default
+forge verify-contract \
+  --chain-id "$CHAIN_ID" \
+  --compiler-version "0.8.15" \
+  --constructor-args "$CONSTRUCTOR_ARGS" \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  "$ADAPTER_ADDRESS" \
+  --watch \
+  "lib/taya-uma-ctf-adapter/src/UmaCtfAdapter.sol:UmaCtfAdapter"
 
 echo "✓ All verifications submitted"
