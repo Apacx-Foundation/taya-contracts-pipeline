@@ -104,6 +104,28 @@ The `market` Foundry profile compiles the contracts from
     --broadcast --verify
   ```
 
+### Migrations
+
+Post-deployment changes (granting roles, updating config, etc.) are managed via
+migration scripts in `script/migrations/`.
+
+- Scripts are named `YYYYMMDD-description.s.sol` — the timestamp prefix determines execution order.
+- Execution history is tracked per chain in `script/migrations/history/<chainId>.json`, including tx hashes.
+
+```bash
+# Run all pending migrations on Polygon
+./script/cmd/run_migration.sh 137
+
+# Run a specific migration
+./script/cmd/run_migration.sh 137 20260331-migrate-admin
+
+# Run all pending migrations on Sepolia
+./script/cmd/run_migration.sh 11155111
+```
+
+Migrations are idempotent — already-executed migrations are skipped. To re-run
+one, remove its entry from the history file.
+
 ### Useful Commands
 
 | Task                     | Command                                          |

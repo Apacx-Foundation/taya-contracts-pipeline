@@ -15,6 +15,7 @@ fs_permissions = [
     { access = "read", path = "./out_market_ext/"},
     { access = "read", path = "./config/"},
     { access = "read-write", path = "./script/output/"},
+    { access = "read-write", path = "./script/migrations/"},
 ]
 remappings = []
 
