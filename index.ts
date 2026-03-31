@@ -45,16 +45,16 @@ export const DeploymentOutputSchema = z.object({
   fpmmFactory: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  lmsrFactory: z
-    .string()
-    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   cappedLmsrFactory: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   umaAdapterGate: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  whitelistFactory: z
+  whitelist: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  bettingToken: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   deployedAtBlock: z.number() as z.ZodType<number>,

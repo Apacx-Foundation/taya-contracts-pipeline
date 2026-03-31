@@ -51,13 +51,16 @@ forge script ./script/DeployAdapterDemo.s.sol \
   --private-key="$PRIVATE_KEY" \
   --isolate
 
+# Inject fixedMathLib into output JSON (deployed via forge create, not forge script)
+jq --arg addr "$FIXED_MATH_LIB_ADDRESS" '. + {fixedMathLib: $addr}' "$OUTPUT_PATH" > "${OUTPUT_PATH}.tmp" && mv "${OUTPUT_PATH}.tmp" "$OUTPUT_PATH"
+
 CTF_ADDRESS=$(jq -r '.ctf' "$OUTPUT_PATH")
 ADAPTER_ADDRESS=$(jq -r '.umaAdapter' "$OUTPUT_PATH")
 ADAPTER_GATE_ADDRESS=$(jq -r '.umaAdapterGate' "$OUTPUT_PATH")
 FPMM_FACTORY_ADDRESS=$(jq -r '.fpmmFactory' "$OUTPUT_PATH")
-LMSR_FACTORY_ADDRESS=$(jq -r '.lmsrFactory' "$OUTPUT_PATH")
 CAPPED_LMSR_FACTORY_ADDRESS=$(jq -r '.cappedLmsrFactory' "$OUTPUT_PATH")
-WHITELIST_FACTORY_ADDRESS=$(jq -r '.whitelistFactory' "$OUTPUT_PATH")
+WHITELIST_ADDRESS=$(jq -r '.whitelist' "$OUTPUT_PATH")
+BETTING_TOKEN_ADDRESS=$(jq -r '.bettingToken' "$OUTPUT_PATH")
 FINDER_ADDRESS=$(jq -r '.uma.finder' "$NETWORK_CONFIG_PATH")
 OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
@@ -66,9 +69,9 @@ echo "  ConditionalTokens:              ${CTF_ADDRESS}"
 echo "  UmaCtfAdapterDemo:              ${ADAPTER_ADDRESS}"
 echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
 echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
-echo "  LMSRMarketMakerFactory:         ${LMSR_FACTORY_ADDRESS}"
-echo "  CappedLMSRMarketMakerFactory:   ${CAPPED_LMSR_FACTORY_ADDRESS}"
-echo "  WhitelistFactory:               ${WHITELIST_FACTORY_ADDRESS}"
+echo "  CappedLMSRDeterministicFactory: ${CAPPED_LMSR_FACTORY_ADDRESS}"
+echo "  WhitelistAccessControl:         ${WHITELIST_ADDRESS}"
+echo "  BettingToken (proxy):           ${BETTING_TOKEN_ADDRESS}"
 
 if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
   CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
@@ -137,21 +140,6 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     "$FIXED_MATH_LIB_ADDRESS" \
     "node_modules/@gnosis.pm/util-contracts/contracts/Fixed192x64Math.sol:Fixed192x64Math"
 
-  FOUNDRY_PROFILE=market \
-  FOUNDRY_LIBS='["lib","node_modules"]' \
-  FOUNDRY_ALLOW_PATHS='["lib","../lib","../../lib", "../node_modules"]' \
-  FOUNDRY_REMAPPINGS='["openzeppelin-solidity/=node_modules/openzeppelin-solidity/", "conditional-tokens-contracts/=lib/taya-conditional-tokens-contracts", "util-contracts/=node_modules/@gnosis.pm/util-contracts/", "canonical-weth/=node_modules/canonical-weth/"]' \
-  forge verify-contract \
-    --chain-id "$CHAIN_ID" \
-    --etherscan-api-key "$ETHERSCAN_API_KEY" \
-    --compiler-version "v0.5.10+commit.5a6ea5b1" \
-    --num-of-optimizations 200 \
-    --evm-version "petersburg" \
-    --libraries "${FIXED_MATH_LIB_PATH}:${FIXED_MATH_LIB_ADDRESS}" \
-    --watch \
-    "$LMSR_FACTORY_ADDRESS" \
-    "lib/taya-conditional-tokens-market-makers/contracts/LMSRMarketMakerFactory.sol:LMSRMarketMakerFactory"
-
   FOUNDRY_PROFILE=market_ext \
   FOUNDRY_LIBS='["lib","node_modules"]' \
   FOUNDRY_ALLOW_PATHS='["lib","../lib","../../lib", "../node_modules"]' \
@@ -165,7 +153,7 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --libraries "${FIXED_MATH_LIB_PATH}:${FIXED_MATH_LIB_ADDRESS}" \
     --watch \
     "$CAPPED_LMSR_FACTORY_ADDRESS" \
-    "src_market_ext/CappedLMSRMarketMakerFactory.sol:CappedLMSRMarketMakerFactory"
+    "src_market_ext/CappedLMSRDeterministicFactory.sol:CappedLMSRDeterministicFactory"
 
   FOUNDRY_PROFILE=market_ext \
   FOUNDRY_LIBS='["lib","node_modules"]' \
@@ -178,8 +166,19 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     --num-of-optimizations 200 \
     --evm-version "petersburg" \
     --watch \
-    "$WHITELIST_FACTORY_ADDRESS" \
-    "src_market_ext/WhitelistFactory.sol:WhitelistFactory"
+    "$WHITELIST_ADDRESS" \
+    "src_market_ext/WhitelistAccessControl.sol:WhitelistAccessControl"
+
+  # Verify BettingToken implementation (UUPS proxy — verify the impl, not the proxy)
+  FOUNDRY_PROFILE=default
+  forge verify-contract \
+    --chain-id "$CHAIN_ID" \
+    --compiler-version "0.8.15" \
+    --etherscan-api-key "$ETHERSCAN_API_KEY" \
+    "$BETTING_TOKEN_ADDRESS" \
+    --root "." \
+    --watch \
+    "src/BettingToken.sol:BettingToken"
 else
   echo "⚠️  Skipping verification; ETHERSCAN_API_KEY is not set."
 fi
