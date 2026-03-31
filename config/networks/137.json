@@ -1,9 +1,5 @@
 {
-  "admins": [
-    "0x6E1864e4eBE1dAaEa8fDa6a7f9f96076b98dc547",
-    "0x79d95785b0531Fde6876e66793499cA1E536394B",
-    "0xc6F1cfA1b5840E5aFe56F7B7eF3c52c3bcDa06C5"
-  ],
+  "admins": ["0x083Eb744254768AeB40BDB05bb022e4f868970db"],
   "tokens": {
     "pht": "0xe75220cB014Dfb2D354bb59be26d7458bB8d0706",
     "usdc": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
