@@ -40,7 +40,7 @@ echo "Verifying contracts on chain ${CHAIN_ID}..."
 echo "  BettingToken proxy: ${BETTING_TOKEN_PROXY}"
 echo "  BettingToken impl:  ${BETTING_TOKEN_IMPL}"
 
-# --- UmaCtfAdapterDemo ---
+# --- UmaCtfAdapter ---
 CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,address,address)" "$CTF_ADDRESS" "$FINDER_ADDRESS" "$OO_ADDRESS")
 FOUNDRY_PROFILE=default
 forge verify-contract \
@@ -51,7 +51,7 @@ forge verify-contract \
   "$ADAPTER_ADDRESS" \
   --root "lib/taya-uma-ctf-adapter" \
   --watch \
-  "src/UmaCtfAdapterDemo.sol:UmaCtfAdapterDemo"
+  "src/UmaCtfAdapter.sol:UmaCtfAdapter"
 
 # --- UmaCtfAdapterGate ---
 FOUNDRY_PROFILE=default
@@ -141,7 +141,7 @@ forge verify-contract \
   "$WHITELIST_ADDRESS" \
   "src_market_ext/WhitelistAccessControl.sol:WhitelistAccessControl"
 
-# --- BettingToken (verify implementation, not proxy) ---
+# --- BettingToken implementation ---
 FOUNDRY_PROFILE=default
 forge verify-contract \
   --chain-id "$CHAIN_ID" \
@@ -151,5 +151,18 @@ forge verify-contract \
   --root "." \
   --watch \
   "src/BettingToken.sol:BettingToken"
+
+# --- BettingToken proxy (ERC1967Proxy) ---
+PROXY_CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,bytes)" "$BETTING_TOKEN_IMPL" "$(cast calldata "initialize(string,string,address[])" "Betting Token" "BET" "[$(jq -r '.admins | join(",")' "$NETWORK_CONFIG_PATH")]")")
+FOUNDRY_PROFILE=default
+forge verify-contract \
+  --chain-id "$CHAIN_ID" \
+  --compiler-version "0.8.15" \
+  --constructor-args "$PROXY_CONSTRUCTOR_ARGS" \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  "$BETTING_TOKEN_PROXY" \
+  --root "." \
+  --watch \
+  "lib/taya-uma-ctf-adapter/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy"
 
 echo "✓ All verifications submitted"
