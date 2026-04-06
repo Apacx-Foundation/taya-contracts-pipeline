@@ -45,7 +45,7 @@ FOUNDRY_PROFILE=market_ext forge build --force \
   --libraries "${FIXED_MATH_LIB_PATH}:${FIXED_MATH_LIB_ADDRESS}"
 
 FOUNDRY_PROFILE=default
-forge script ./script/DeployAdapterDemo.s.sol \
+forge script ./script/DeployAdapter.s.sol \
   --rpc-url "$POLYGON_RPC_URL" \
   --broadcast \
   --private-key="$PRIVATE_KEY" \
@@ -66,7 +66,7 @@ OO_ADDRESS=$(jq -r '.uma.optimisticOracleV2' "$NETWORK_CONFIG_PATH")
 
 echo "✓ Deployments"
 echo "  ConditionalTokens:              ${CTF_ADDRESS}"
-echo "  UmaCtfAdapterDemo:              ${ADAPTER_ADDRESS}"
+echo "  UmaCtfAdapter:              ${ADAPTER_ADDRESS}"
 echo "  FPMMDeterministicFactory:       ${FPMM_FACTORY_ADDRESS}"
 echo "  Fixed192x64Math:                ${FIXED_MATH_LIB_ADDRESS}"
 echo "  CappedLMSRDeterministicFactory: ${CAPPED_LMSR_FACTORY_ADDRESS}"
@@ -85,7 +85,7 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     "$ADAPTER_ADDRESS" \
     --root "lib/taya-uma-ctf-adapter" \
     --watch \
-    "src/UmaCtfAdapterDemo.sol:UmaCtfAdapterDemo"
+    "src/UmaCtfAdapter.sol:UmaCtfAdapter"
     
   FOUNDRY_PROFILE=default
   forge verify-contract \
@@ -169,16 +169,30 @@ if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     "$WHITELIST_ADDRESS" \
     "src_market_ext/WhitelistAccessControl.sol:WhitelistAccessControl"
 
-  # Verify BettingToken implementation (UUPS proxy — verify the impl, not the proxy)
+  # Verify BettingToken implementation
+  BETTING_TOKEN_IMPL=$(cast implementation "$BETTING_TOKEN_ADDRESS" --rpc-url "$POLYGON_RPC_URL")
   FOUNDRY_PROFILE=default
   forge verify-contract \
     --chain-id "$CHAIN_ID" \
     --compiler-version "0.8.15" \
     --etherscan-api-key "$ETHERSCAN_API_KEY" \
-    "$BETTING_TOKEN_ADDRESS" \
+    "$BETTING_TOKEN_IMPL" \
     --root "." \
     --watch \
     "src/BettingToken.sol:BettingToken"
+
+  # Verify BettingToken proxy (ERC1967Proxy)
+  PROXY_CONSTRUCTOR_ARGS=$(cast abi-encode "constructor(address,bytes)" "$BETTING_TOKEN_IMPL" "$(cast calldata "initialize(string,string,address[])" "Betting Token" "BET" "[$(jq -r '.admins | join(",")' "$NETWORK_CONFIG_PATH")]")")
+  FOUNDRY_PROFILE=default
+  forge verify-contract \
+    --chain-id "$CHAIN_ID" \
+    --compiler-version "0.8.15" \
+    --constructor-args "$PROXY_CONSTRUCTOR_ARGS" \
+    --etherscan-api-key "$ETHERSCAN_API_KEY" \
+    "$BETTING_TOKEN_ADDRESS" \
+    --root "." \
+    --watch \
+    "lib/taya-uma-ctf-adapter/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy"
 else
   echo "⚠️  Skipping verification; ETHERSCAN_API_KEY is not set."
 fi
