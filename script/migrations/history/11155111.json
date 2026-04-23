@@ -7,6 +7,14 @@
       "txHashes": [
         "0x4daafd4178e023d6f1cf7a07c43c2b00db4bced4a8377bcd904989922f2fa2bb"
       ]
+    },
+    {
+      "name": "20260424-deploy-delegatecall-executor",
+      "chainId": "11155111",
+      "executedAt": "2026-04-23T18:40:22Z",
+      "txHashes": [
+        "0x670e9c02b1f7d5e0ab5575997a9bea3afef99b3249c4a4e6050109955fd5f0f3"
+      ]
     }
   ]
 }
