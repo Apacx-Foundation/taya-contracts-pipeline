@@ -1,0 +1,12 @@
+{
+  "migrations": [
+    {
+      "name": "20260423-deploy-lmsr-buy-exact-helper",
+      "chainId": "137",
+      "executedAt": "2026-04-23T17:45:17Z",
+      "txHashes": [
+        "0x7a267b9ccddf11a4eb64200e74e1346c49a38363c30d1d103a95127469635780"
+      ]
+    }
+  ]
+}
