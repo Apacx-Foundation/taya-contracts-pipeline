@@ -342,8 +342,13 @@ contract LMSRBuyExactHelperTest {
         assertTrue(qTokens > 0, "no tokens delivered");
         // Retail UX invariant: user spent EXACTLY collateralIn.
         assertEq(spent, collateralIn, "coverTrue: exact-spend violated");
-        // Dust fee bound: well below 1% of collateralIn for reasonable pool sizes.
-        assertLe(poolDust, collateralIn / 100, "coverTrue: dust larger than sanity bound");
+        // Dust fee bound — matches the documented invariant from the helper NatSpec:
+        // Fixed192x64Math's ~2^-62 relative precision → funding >> 60 collateral units
+        // + a 1024-wei floor for scale independence. A regression that grows dust by
+        // orders of magnitude must fail this. For funding = 1000*ONE ≈ 1.84e22, bound
+        // is ≈ 17_024 wei — 10^15× tighter than the previous `collateralIn/100`.
+        uint256 dustBound = 1024 + (funding >> 60);
+        assertLe(poolDust, dustBound, "coverTrue: dust exceeded documented bound");
         assertEq(ctf.balanceOf(address(proxy), yesId), qTokens, "user did not receive q tokens");
     }
 
@@ -568,5 +573,75 @@ contract LMSRBuyExactHelperTest {
         //   allow funding>>60 collateral units plus a 1024-wei floor for scale independence.
         uint256 slack = 1024 + (funding >> 60);
         assertLe(collateralIn - uint256(cost), slack, "round-trip: q too conservative");
+    }
+
+    /// @notice ROUND-TRIP with fees: same invariant but over the full fee path —
+    ///           netCost(q) * (1 + (baseFee + surcharge)/FEE_RANGE) ≈ collateralIn.
+    ///         Matches what `tradeWithSurcharge` will actually charge on-chain. Exercises the
+    ///         fee arithmetic round-trip that testFuzz_roundTrip (fee=0) can't.
+    /// forge-config: market_ext.fuzz.runs = 10000
+    function testFuzz_roundTrip_withFees(
+        uint256 fundingSeed,
+        uint256 yesPrimeSeed,
+        uint256 noPrimeSeed,
+        uint256 collateralInSeed,
+        uint64 baseFeeSeed,
+        uint64 surchargeSeed
+    ) public {
+        // Cap total fee at 80% of FEE_RANGE — tradeWithSurcharge enforces ≤ FEE_RANGE and
+        // higher rates make realistic collateralIn yield q==0 too often.
+        uint64 totalFeeCap = uint64(uint256(FEE_RANGE) * 8 / 10);
+        uint64 baseFee = uint64(uint256(baseFeeSeed) % totalFeeCap);
+        uint64 surcharge = uint64(uint256(surchargeSeed) % (uint256(totalFeeCap) - uint256(baseFee)));
+        uint256 funding = (fundingSeed % (10 ** 24 - 10 ** 9)) + 10 ** 9;
+
+        _runRoundTripFeesInner(
+            funding,
+            yesPrimeSeed % (funding / 4),
+            noPrimeSeed % (funding / 4),
+            (collateralInSeed % (funding / 4)) + (funding / 1000),
+            baseFee,
+            surcharge
+        );
+    }
+
+    function _runRoundTripFeesInner(
+        uint256 funding,
+        uint256 yesPrime,
+        uint256 noPrime,
+        uint256 collateralIn,
+        uint64 baseFee,
+        uint64 surcharge
+    ) internal {
+        CappedLMSRMarketMaker mm;
+        uint256 yesId;
+        uint256 noId;
+        (mm, yesId, noId) = createBinaryMarket(funding, baseFee, 0);
+
+        collateral.approve(address(mm), uint256(-1));
+        if (!_doPriorTrade(mm, 0, yesPrime)) return;
+        if (!_doPriorTrade(mm, 1, noPrime)) return;
+
+        (bool ok, uint256 q) = _callCalcLib(mm, yesId, noId, 0, collateralIn, surcharge);
+        if (!ok || q == 0) return;
+
+        _assertRoundTripWithFees(mm, q, surcharge, collateralIn, funding);
+    }
+
+    function _assertRoundTripWithFees(
+        CappedLMSRMarketMaker mm,
+        uint256 q,
+        uint64 surcharge,
+        uint256 collateralIn,
+        uint256 funding
+    ) internal {
+        (uint256 totalCost, int256 rawCost) = _totalCostViaPool(mm, q, 0, surcharge);
+        assertTrue(rawCost > 0, "round-trip-fees: cost should be positive for buy");
+        // Invariant 1 (hard): never overspend the user's budget.
+        assertLe(totalCost, collateralIn, "round-trip-fees: OVERSPEND");
+        // Invariant 2 (tight): residual bounded by FP precision + fee-mul truncation (a few
+        // wei on top of the fee=0 bound).
+        uint256 slack = 1024 + (funding >> 60) + 16;
+        assertLe(collateralIn - totalCost, slack, "round-trip-fees: q too conservative");
     }
 }
