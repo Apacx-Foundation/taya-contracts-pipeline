@@ -125,7 +125,19 @@ echo ""
 forge build
 
 for name in "${pending[@]}"; do
-  read -r kind script_file <<<"$(resolve_migration "$name")"
+  # `set -e` does NOT propagate out of $(...) command substitution, so we have to
+  # capture + check the exit status explicitly. Without this, a resolve_migration
+  # failure (deleted file, etc.) silently leaves kind/script_file empty and we'd
+  # still record the migration as "ran" at the bottom of the loop.
+  if ! resolved=$(resolve_migration "$name"); then
+    echo "ERROR: could not resolve migration '$name' to a .s.sol or .sh file."
+    exit 1
+  fi
+  read -r kind script_file <<<"$resolved"
+  if [[ -z "$kind" || -z "$script_file" ]]; then
+    echo "ERROR: resolve_migration returned empty kind/script for '$name'."
+    exit 1
+  fi
   echo "--- Running: $name ($kind) ---"
 
   case "$kind" in
@@ -139,6 +151,10 @@ for name in "${pending[@]}"; do
     sh)
       bash "$script_file" "$CHAIN_ID" "$RPC_URL" "$PRIVATE_KEY"
       broadcast_file="./broadcast/${name}.sh/${CHAIN_ID}/run-latest.json"
+      ;;
+    *)
+      echo "ERROR: unknown migration kind '$kind' for '$name'."
+      exit 1
       ;;
   esac
 
