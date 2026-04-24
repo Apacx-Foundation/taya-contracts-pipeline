@@ -27,6 +27,16 @@ contract MockAccount {
         DelegatecallExecutor(executor).onUninstall(uninstallData);
     }
 
+    /// Helper so tests can drive the executor from the account's context (matching
+    /// the production flow: OwnableExecutor makes the account call DelegatecallExecutor,
+    /// so msg.sender into execute() is the account).
+    function callExecutor(address executor, address target, bytes calldata data)
+        external
+        returns (bytes[] memory)
+    {
+        return DelegatecallExecutor(executor).execute(address(this), target, data);
+    }
+
     function executeFromExecutor(bytes32 mode, bytes calldata executionCalldata)
         external
         payable
@@ -117,7 +127,7 @@ contract DelegatecallExecutorTest is Test {
     /// the probe equals the account — proof that code ran in the account's context.
     function test_delegatecallRunsInAccountContext() public {
         bytes memory data = abi.encodeWithSelector(Probe.touch.selector, address(sink));
-        executor.execute(address(account), address(probe), data);
+        account.callExecutor(address(executor), address(probe), data);
 
         // Sink saw msg.sender = account (because probe.touch() was a nested external
         // call from within account's delegatecalled frame).
@@ -129,16 +139,28 @@ contract DelegatecallExecutorTest is Test {
     /// relies on.
     function test_externalCallFromDelegatecalledFrame() public {
         bytes memory data = abi.encodeWithSelector(Probe.readThis.selector);
-        bytes[] memory ret = executor.execute(address(account), address(probe), data);
+        bytes[] memory ret = account.callExecutor(address(executor), address(probe), data);
         address observedThis = abi.decode(ret[0], (address));
         assertEq(observedThis, address(account), "address(this) inside probe != account");
+    }
+
+    /// Access-control: a direct external caller (not the account itself) must revert.
+    /// Without this guard, ANY address could drain an account that has the executor
+    /// installed, because Kernel's executeFromExecutor only authorizes the module — not
+    /// who called the module.
+    function test_externalCallerIsUnauthorized() public {
+        bytes memory data = abi.encodeWithSelector(Probe.touch.selector, address(sink));
+        vm.expectRevert("DelegatecallExecutor: unauthorized");
+        executor.execute(address(account), address(probe), data);
     }
 
     function test_revertsWhenExecutorNotInstalled() public {
         MockAccount fresh = new MockAccount();
         bytes memory data = abi.encodeWithSelector(Probe.touch.selector, address(sink));
 
+        // Account tries to use the executor without having it installed — Kernel's
+        // auth check rejects before any delegatecall happens.
         vm.expectRevert(MockAccount.NotInstalled.selector);
-        executor.execute(address(fresh), address(probe), data);
+        fresh.callExecutor(address(executor), address(probe), data);
     }
 }

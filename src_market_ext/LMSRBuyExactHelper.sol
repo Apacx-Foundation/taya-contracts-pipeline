@@ -84,6 +84,11 @@ contract LMSRBuyExactHelper {
         );
         require(outcomeTokens > 0, "no feasible q");
         require(outcomeTokens >= minOutcomeTokens, "slippage");
+        // Guard the uint256→int256 cast: a value ≥ 2^255 would wrap negative and flip
+        // this buy into a sell. Unreachable with realistic LMSR funding (log-bounded q),
+        // but the check is cheap and prevents undefined behaviour on pathological input.
+        require(outcomeTokens < (uint256(1) << 255), "outcomeTokens overflow");
+        require(collateralIn < (uint256(1) << 255), "collateralIn overflow");
 
         int256[] memory amounts = new int256[](2);
         amounts[outcomeIndex] = int256(outcomeTokens);

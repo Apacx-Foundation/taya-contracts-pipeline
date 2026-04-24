@@ -17,10 +17,14 @@ interface IERC7579Account {
 ///           account.executeFromExecutor(MODE_DELEGATECALL, abi.encodePacked(target, data))
 ///         → Kernel runs `target`'s code in `account`'s storage context.
 ///
-/// @dev    Authorization: enforced by `account.executeFromExecutor`, which requires
-///         msg.sender to be an installed executor module. This contract adds no
-///         additional auth. Safe because only code running *inside* `account` can cause
-///         a delegatecall anyway — execution control already lives at the account layer.
+/// @dev    Authorization: `execute` requires `msg.sender == account`. The intended call
+///         path is OwnableExecutor → account → DelegatecallExecutor.execute(account, ...),
+///         which satisfies this naturally. Without this check, ANY address could call
+///         `execute(victimAccount, evilTarget, evilData)` and — as long as this contract
+///         is installed as an executor on the victim — Kernel would authorize the
+///         delegatecall (executeFromExecutor authorizes the *module*, not the module's
+///         caller). `isInstalled`/`onInstall` also require `msg.sender == account` so a
+///         random EOA can't pollute the mapping by faking install events.
 contract DelegatecallExecutor {
     /// @dev ERC-7579 single-DELEGATECALL mode.
     ///      Layout: callType(1) || execType(1) || modeSelector(4) || modePayload(22).
@@ -61,12 +65,17 @@ contract DelegatecallExecutor {
     // --- Execution -----------------------------------------------------------
 
     /// @notice Trigger a DELEGATECALL from `account` into `target` with `data`.
-    /// @dev    The account's `executeFromExecutor` requires msg.sender (this contract)
-    ///         to be an installed executor module — that's the access control.
+    /// @dev    Only `account` itself can invoke this — Kernel's `executeFromExecutor`
+    ///         only authorizes that the MODULE is installed, not who called the module,
+    ///         so we must enforce caller==account here. The intended chain is:
+    ///         OwnableExecutor → account.execute → DelegatecallExecutor.execute(account, ...)
+    ///         which satisfies this naturally. A direct external call from a random EOA
+    ///         fails here.
     function execute(address account, address target, bytes calldata data)
         external
         returns (bytes[] memory returnData)
     {
+        require(msg.sender == account, "DelegatecallExecutor: unauthorized");
         // ERC-7579 executionCalldata for single DELEGATECALL: encodePacked(target, data).
         // No value field — delegatecall uses the caller's context/balance.
         returnData = IERC7579Account(account).executeFromExecutor(
