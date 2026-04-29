@@ -6,7 +6,13 @@
 #   migration_name  — optional, run only this migration (e.g. "20260331-migrate-admin")
 #                     if omitted, runs all pending migrations in order
 #
-# Migration scripts live in script/migrations/<name>.s.sol
+# Migration scripts live in script/migrations/<name>.{s.sol,sh}:
+#   - *.s.sol  → invoked via `forge script` (broadcast via --broadcast flag)
+#   - *.sh     → invoked via `bash <file> <chain_id> <rpc_url> <private_key>`
+#                Bash migrations are responsible for their own broadcasting (e.g. `forge
+#                create --broadcast`). If they want tx-hash tracking in history, they can
+#                write a forge-style run-latest.json to ./broadcast/<name>.sh/<chain_id>/.
+#
 # Execution history is tracked in script/migrations/history/<chain_id>.json
 #
 set -eo pipefail
@@ -16,7 +22,6 @@ MIGRATION_NAME="${2:-}"
 
 MIGRATIONS_DIR="./script/migrations"
 HISTORY_FILE="${MIGRATIONS_DIR}/history/${CHAIN_ID}.json"
-OUTPUT_PATH="./script/output/${CHAIN_ID}.json"
 
 # RPC URL env var per chain
 case "$CHAIN_ID" in
@@ -50,15 +55,29 @@ if [[ ! -f "$HISTORY_FILE" ]]; then
   echo '{"migrations":[]}' > "$HISTORY_FILE"
 fi
 
+# Resolve a migration name to its on-disk script path and "kind" ("sol" or "sh").
+# Echoes `<kind>\t<path>` on success; returns non-zero if not found.
+resolve_migration() {
+  local name="$1"
+  if [[ -f "${MIGRATIONS_DIR}/${name}.s.sol" ]]; then
+    echo -e "sol\t${MIGRATIONS_DIR}/${name}.s.sol"
+    return 0
+  fi
+  if [[ -f "${MIGRATIONS_DIR}/${name}.sh" ]]; then
+    echo -e "sh\t${MIGRATIONS_DIR}/${name}.sh"
+    return 0
+  fi
+  return 1
+}
+
 # Get list of already-executed migrations
 executed=$(jq -r '.migrations[].name' "$HISTORY_FILE")
 
 # Collect migration scripts to run
 if [[ -n "$MIGRATION_NAME" ]]; then
   # Single migration mode
-  script_file="${MIGRATIONS_DIR}/${MIGRATION_NAME}.s.sol"
-  if [[ ! -f "$script_file" ]]; then
-    echo "ERROR: Migration not found: $script_file"
+  if ! resolve_migration "$MIGRATION_NAME" > /dev/null; then
+    echo "ERROR: Migration not found: ${MIGRATIONS_DIR}/${MIGRATION_NAME}.{s.sol,sh}"
     exit 1
   fi
   if echo "$executed" | grep -qx "$MIGRATION_NAME"; then
@@ -68,15 +87,27 @@ if [[ -n "$MIGRATION_NAME" ]]; then
   fi
   pending=("$MIGRATION_NAME")
 else
-  # All pending migrations (sorted by filename = timestamp order)
-  pending=()
-  for f in "$MIGRATIONS_DIR"/*.s.sol; do
+  # All pending migrations (both .s.sol and .sh; sorted by filename = timestamp order)
+  candidate_names=()
+  for f in "$MIGRATIONS_DIR"/*.s.sol "$MIGRATIONS_DIR"/*.sh; do
     [[ -f "$f" ]] || continue
-    name=$(basename "$f" .s.sol)
-    if ! echo "$executed" | grep -qx "$name"; then
-      pending+=("$name")
-    fi
+    base=$(basename "$f")
+    name="${base%.s.sol}"
+    name="${name%.sh}"
+    candidate_names+=("$name")
   done
+
+  # Dedupe + sort (bash 3 compatible — no mapfile)
+  pending=()
+  if [[ ${#candidate_names[@]} -gt 0 ]]; then
+    sorted_names=$(printf '%s\n' "${candidate_names[@]}" | sort -u)
+    while IFS= read -r name; do
+      [[ -z "$name" ]] && continue
+      if ! echo "$executed" | grep -qx "$name"; then
+        pending+=("$name")
+      fi
+    done <<< "$sorted_names"
+  fi
 fi
 
 if [[ ${#pending[@]} -eq 0 ]]; then
@@ -94,23 +125,47 @@ echo ""
 forge build
 
 for name in "${pending[@]}"; do
-  script_file="${MIGRATIONS_DIR}/${name}.s.sol"
-  echo "--- Running: $name ---"
+  # `set -e` does NOT propagate out of $(...) command substitution, so we have to
+  # capture + check the exit status explicitly. Without this, a resolve_migration
+  # failure (deleted file, etc.) silently leaves kind/script_file empty and we'd
+  # still record the migration as "ran" at the bottom of the loop.
+  if ! resolved=$(resolve_migration "$name"); then
+    echo "ERROR: could not resolve migration '$name' to a .s.sol or .sh file."
+    exit 1
+  fi
+  read -r kind script_file <<<"$resolved"
+  if [[ -z "$kind" || -z "$script_file" ]]; then
+    echo "ERROR: resolve_migration returned empty kind/script for '$name'."
+    exit 1
+  fi
+  echo "--- Running: $name ($kind) ---"
 
-  forge script "$script_file" \
-    --rpc-url "$RPC_URL" \
-    --broadcast \
-    --private-key "$PRIVATE_KEY"
+  case "$kind" in
+    sol)
+      forge script "$script_file" \
+        --rpc-url "$RPC_URL" \
+        --broadcast \
+        --private-key "$PRIVATE_KEY"
+      broadcast_file="./broadcast/${name}.s.sol/${CHAIN_ID}/run-latest.json"
+      ;;
+    sh)
+      bash "$script_file" "$CHAIN_ID" "$RPC_URL" "$PRIVATE_KEY"
+      broadcast_file="./broadcast/${name}.sh/${CHAIN_ID}/run-latest.json"
+      ;;
+    *)
+      echo "ERROR: unknown migration kind '$kind' for '$name'."
+      exit 1
+      ;;
+  esac
 
-  # Extract tx hashes from forge broadcast receipts
-  broadcast_file="./broadcast/${name}.s.sol/${CHAIN_ID}/run-latest.json"
+  # Extract tx hashes if the migration produced a forge-style broadcast file
   tx_hashes="[]"
   if [[ -f "$broadcast_file" ]]; then
     tx_hashes=$(jq '[.transactions[].hash // empty]' "$broadcast_file")
     echo "  Tx hashes:"
     echo "$tx_hashes" | jq -r '.[] | "    " + .'
   else
-    echo "  WARNING: No broadcast file found at $broadcast_file"
+    echo "  (no broadcast file at $broadcast_file — tx hashes not recorded)"
   fi
 
   # Record in history

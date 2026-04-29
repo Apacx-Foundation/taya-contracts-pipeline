@@ -1,0 +1,20 @@
+{
+  "migrations": [
+    {
+      "name": "20260423-deploy-lmsr-buy-exact-helper",
+      "chainId": "11155111",
+      "executedAt": "2026-04-24T09:54:47Z",
+      "txHashes": [
+        "0xd87575f951a40d06325fcfdf1eb9288e8af3aa743fffd0828ff5535a0411089f"
+      ]
+    },
+    {
+      "name": "20260424-deploy-delegatecall-executor",
+      "chainId": "11155111",
+      "executedAt": "2026-04-24T09:55:27Z",
+      "txHashes": [
+        "0x508e3df802f42badfa783234902a72bd830e905a8eafa3c5750dc6159a4c9dca"
+      ]
+    }
+  ]
+}
