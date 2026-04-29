@@ -32,8 +32,26 @@ contract Migration_20260430_BettingTokenRoleManager is Script {
         require(admins.length > 0, "no admins configured");
         require(proxies.length > 0, "no BettingToken proxies on this chain");
 
+        // tx.origin is the signer address in forge script
+        bool isAdmin = BettingToken(proxies[0]).hasRole(
+            BettingToken(proxies[0]).DEFAULT_ADMIN_ROLE(),
+            tx.origin
+        );
+
         vm.startBroadcast();
         BettingToken newImpl = new BettingToken();
+
+        if (!isAdmin) {
+            vm.stopBroadcast();
+            console2.log("Sender is not an admin - impl deployed for manual upgrade.");
+            console2.log("New BettingToken impl:", address(newImpl));
+            console2.log("Upgrade each proxy manually via Polygonscan:");
+            for (uint256 i = 0; i < proxies.length; i++) {
+                console2.log("  proxy:", proxies[i]);
+            }
+            console2.log("Call upgradeTo(<impl>) then initializeV2(<admins>, <admins>) on each.");
+            return;
+        }
 
         for (uint256 i = 0; i < proxies.length; i++) {
             address proxy = proxies[i];
