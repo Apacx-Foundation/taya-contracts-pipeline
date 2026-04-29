@@ -19,7 +19,7 @@ import {BettingToken} from "../../src/BettingToken.sol";
 /// Post-upgrade assertions run inside the broadcast block; if any fail the
 /// script reverts and run_migration.sh does NOT record the migration in
 /// history, so the migration can be re-run after fixing the cause.
-contract UpgradeBettingTokenRoleManager is Script {
+contract Migration_20260430_BettingTokenRoleManager is Script {
     using stdJson for string;
 
     // ERC1967: bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)
