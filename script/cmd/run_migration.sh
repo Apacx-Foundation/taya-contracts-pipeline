@@ -145,7 +145,9 @@ for name in "${pending[@]}"; do
       forge script "$script_file" \
         --rpc-url "$RPC_URL" \
         --broadcast \
-        --private-key "$PRIVATE_KEY"
+        --private-key "$PRIVATE_KEY" \
+        --verify \
+        --etherscan-api-key "$ETHERSCAN_API_KEY"
       broadcast_file="./broadcast/${name}.s.sol/${CHAIN_ID}/run-latest.json"
       ;;
     sh)
