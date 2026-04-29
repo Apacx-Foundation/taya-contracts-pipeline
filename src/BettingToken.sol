@@ -8,7 +8,9 @@ import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 contract BettingToken is Initializable, ERC20, AccessControl, UUPSUpgradeable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
     bytes32 public constant BLACKLISTER_ROLE = keccak256("BLACKLISTER_ROLE");
+    bytes32 public constant ROLE_MANAGER_ROLE = keccak256("ROLE_MANAGER_ROLE");
 
     string private _tokenName;
     string private _tokenSymbol;
@@ -36,10 +38,32 @@ contract BettingToken is Initializable, ERC20, AccessControl, UUPSUpgradeable {
         _tokenName = name_;
         _tokenSymbol = symbol_;
 
+        _setRoleAdmin(MINTER_ROLE, ROLE_MANAGER_ROLE);
+        _setRoleAdmin(BURNER_ROLE, ROLE_MANAGER_ROLE);
+        _setRoleAdmin(BLACKLISTER_ROLE, ROLE_MANAGER_ROLE);
+
         for (uint256 i = 0; i < admins.length; i++) {
             _grantRole(DEFAULT_ADMIN_ROLE, admins[i]);
+            _grantRole(ROLE_MANAGER_ROLE, admins[i]);
             _grantRole(MINTER_ROLE, admins[i]);
+            _grantRole(BURNER_ROLE, admins[i]);
             _grantRole(BLACKLISTER_ROLE, admins[i]);
+        }
+    }
+
+    /// @notice Reinitializer that wires up ROLE_MANAGER_ROLE as the role admin
+    /// for MINTER/BURNER/BLACKLISTER on existing proxies and grants the new
+    /// roles to the supplied bootstrap addresses.
+    function initializeV2(address[] calldata roleManagers, address[] calldata burners) external reinitializer(2) {
+        _setRoleAdmin(MINTER_ROLE, ROLE_MANAGER_ROLE);
+        _setRoleAdmin(BURNER_ROLE, ROLE_MANAGER_ROLE);
+        _setRoleAdmin(BLACKLISTER_ROLE, ROLE_MANAGER_ROLE);
+
+        for (uint256 i = 0; i < roleManagers.length; i++) {
+            _grantRole(ROLE_MANAGER_ROLE, roleManagers[i]);
+        }
+        for (uint256 i = 0; i < burners.length; i++) {
+            _grantRole(BURNER_ROLE, burners[i]);
         }
     }
 
@@ -83,6 +107,12 @@ contract BettingToken is Initializable, ERC20, AccessControl, UUPSUpgradeable {
 
     function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
         _mint(to, amount);
+    }
+
+    // ---- Burning (BURNER_ROLE) ----
+
+    function burn(address from, uint256 amount) external onlyRole(BURNER_ROLE) {
+        _burn(from, amount);
     }
 
     // ---- Transfer hooks (blacklist enforcement) ----

@@ -11,7 +11,9 @@ contract BettingTokenTest is Test {
 
     address public admin;
     address public minter = makeAddr("minter");
+    address public burner = makeAddr("burner");
     address public blacklister = makeAddr("blacklister");
+    address public roleManager = makeAddr("roleManager");
     address public alice = makeAddr("alice");
     address public bob = makeAddr("bob");
 
@@ -37,9 +39,18 @@ contract BettingTokenTest is Test {
         assertEq(token.name(), "Betting Token");
         assertEq(token.symbol(), "BET");
         assertTrue(token.hasRole(token.DEFAULT_ADMIN_ROLE(), admin));
+        assertTrue(token.hasRole(token.ROLE_MANAGER_ROLE(), admin));
         assertTrue(token.hasRole(token.MINTER_ROLE(), admin));
+        assertTrue(token.hasRole(token.BURNER_ROLE(), admin));
         assertTrue(token.hasRole(token.BLACKLISTER_ROLE(), admin));
         assertEq(token.totalSupply(), 0);
+    }
+
+    function testInitializationWiresRoleAdmins() public view {
+        assertEq(token.getRoleAdmin(token.MINTER_ROLE()), token.ROLE_MANAGER_ROLE());
+        assertEq(token.getRoleAdmin(token.BURNER_ROLE()), token.ROLE_MANAGER_ROLE());
+        assertEq(token.getRoleAdmin(token.BLACKLISTER_ROLE()), token.ROLE_MANAGER_ROLE());
+        assertEq(token.getRoleAdmin(token.ROLE_MANAGER_ROLE()), token.DEFAULT_ADMIN_ROLE());
     }
 
     function testCannotInitializeTwice() public {
@@ -269,5 +280,125 @@ contract BettingTokenTest is Test {
         vm.expectRevert(abi.encodeWithSelector(BettingToken.BlacklistedAddress.selector, alice));
         vm.prank(alice);
         token.transfer(bob, amount);
+    }
+
+    // ---- Burning (BURNER_ROLE) ----
+
+    function testAdminCanBurn() public {
+        token.mint(alice, 100e18);
+        token.burn(alice, 40e18);
+        assertEq(token.balanceOf(alice), 60e18);
+    }
+
+    function testGrantedBurnerCanBurn() public {
+        token.mint(alice, 100e18);
+        token.grantRole(token.BURNER_ROLE(), burner);
+        vm.prank(burner);
+        token.burn(alice, 30e18);
+        assertEq(token.balanceOf(alice), 70e18);
+    }
+
+    function testNonBurnerCannotBurn() public {
+        token.mint(alice, 100e18);
+        vm.expectRevert();
+        vm.prank(alice);
+        token.burn(alice, 10e18);
+    }
+
+    function testBurnRespectsBlacklist() public {
+        token.mint(alice, 100e18);
+        token.blacklist(alice);
+        vm.expectRevert(abi.encodeWithSelector(BettingToken.BlacklistedAddress.selector, alice));
+        token.burn(alice, 10e18);
+    }
+
+    // ---- Role Manager (ROLE_MANAGER_ROLE) ----
+
+    function testRoleManagerCanGrantMinter() public {
+        token.grantRole(token.ROLE_MANAGER_ROLE(), roleManager);
+        vm.prank(roleManager);
+        token.grantRole(token.MINTER_ROLE(), minter);
+        assertTrue(token.hasRole(token.MINTER_ROLE(), minter));
+    }
+
+    function testRoleManagerCanGrantBurner() public {
+        token.grantRole(token.ROLE_MANAGER_ROLE(), roleManager);
+        vm.prank(roleManager);
+        token.grantRole(token.BURNER_ROLE(), burner);
+        assertTrue(token.hasRole(token.BURNER_ROLE(), burner));
+    }
+
+    function testRoleManagerCanGrantBlacklister() public {
+        token.grantRole(token.ROLE_MANAGER_ROLE(), roleManager);
+        vm.prank(roleManager);
+        token.grantRole(token.BLACKLISTER_ROLE(), blacklister);
+        assertTrue(token.hasRole(token.BLACKLISTER_ROLE(), blacklister));
+    }
+
+    function testRoleManagerCanRevokeMinter() public {
+        token.grantRole(token.ROLE_MANAGER_ROLE(), roleManager);
+        token.grantRole(token.MINTER_ROLE(), minter);
+        vm.prank(roleManager);
+        token.revokeRole(token.MINTER_ROLE(), minter);
+        assertFalse(token.hasRole(token.MINTER_ROLE(), minter));
+    }
+
+    function testRoleManagerCannotGrantSelf() public {
+        bytes32 rmRole = token.ROLE_MANAGER_ROLE();
+        token.grantRole(rmRole, roleManager);
+        vm.expectRevert();
+        vm.prank(roleManager);
+        token.grantRole(rmRole, alice);
+    }
+
+    function testRoleManagerCannotGrantDefaultAdmin() public {
+        bytes32 rmRole = token.ROLE_MANAGER_ROLE();
+        bytes32 defaultAdminRole = token.DEFAULT_ADMIN_ROLE();
+        token.grantRole(rmRole, roleManager);
+        vm.expectRevert();
+        vm.prank(roleManager);
+        token.grantRole(defaultAdminRole, alice);
+    }
+
+    function testNonRoleManagerCannotGrantMinter() public {
+        bytes32 minterRole = token.MINTER_ROLE();
+        vm.expectRevert();
+        vm.prank(alice);
+        token.grantRole(minterRole, bob);
+    }
+
+    function testDefaultAdminCanGrantRoleManager() public {
+        token.grantRole(token.ROLE_MANAGER_ROLE(), roleManager);
+        assertTrue(token.hasRole(token.ROLE_MANAGER_ROLE(), roleManager));
+    }
+
+    // ---- initializeV2 ----
+
+    function testInitializeV2CannotRunAfterInitialize() public {
+        // setUp() already ran initialize(), which is reinitializer(1). After
+        // that, initializeV2() (reinitializer(2)) must still be callable
+        // exactly once for migration purposes.
+        address[] memory rms = new address[](1);
+        rms[0] = roleManager;
+        address[] memory burners = new address[](1);
+        burners[0] = burner;
+        token.initializeV2(rms, burners);
+        assertTrue(token.hasRole(token.ROLE_MANAGER_ROLE(), roleManager));
+        assertTrue(token.hasRole(token.BURNER_ROLE(), burner));
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        token.initializeV2(rms, burners);
+    }
+
+    function testInitializeV2PreservesRoleAdminGraph() public {
+        address[] memory rms = new address[](1);
+        rms[0] = roleManager;
+        address[] memory burners = new address[](0);
+        token.initializeV2(rms, burners);
+
+        assertEq(token.getRoleAdmin(token.MINTER_ROLE()), token.ROLE_MANAGER_ROLE());
+        assertEq(token.getRoleAdmin(token.BURNER_ROLE()), token.ROLE_MANAGER_ROLE());
+        assertEq(token.getRoleAdmin(token.BLACKLISTER_ROLE()), token.ROLE_MANAGER_ROLE());
+        assertEq(token.getRoleAdmin(token.ROLE_MANAGER_ROLE()), token.DEFAULT_ADMIN_ROLE());
     }
 }
