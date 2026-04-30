@@ -8,7 +8,7 @@ import {stdJson} from "forge-std/StdJson.sol";
 import {BettingToken} from "../../src/BettingToken.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-contract DeployCnyTestToken is Script {
+contract Migration_20260431_DeployCnyToken is Script {
     using stdJson for string;
 
     string constant TOKEN_NAME = "BET-CNY Token";
