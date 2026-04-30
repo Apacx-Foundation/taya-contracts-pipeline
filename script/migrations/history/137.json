@@ -15,6 +15,20 @@
       "txHashes": [
         "0xbc3c8f18fa4f6c61a9fe708a4cfefba34388077d81c865562568a673f8dc2a48"
       ]
+    },
+    {
+      "name": "20260430-bettingtoken-role-manager",
+      "chainId": "137",
+      "executedAt": "2026-04-29T19:00:59Z",
+      "txHashes": [
+        "0xd0e287cd6120a80b869456280ae2c3199a62e02b3189bb60802cc999f8efcb53"
+      ]
+    },
+    {
+      "name": "20260430-verify-bettingtoken-impl",
+      "chainId": "137",
+      "executedAt": "2026-04-29T19:01:31Z",
+      "txHashes": []
     }
   ]
 }
