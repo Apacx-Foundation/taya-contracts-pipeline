@@ -63,7 +63,7 @@ export const DeploymentOutputSchema = z.object({
   fixedMathLib: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  lmsrBuyExactHelper: z
+  LMSRBuyExactHelper: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   deployedAtBlock: z.number() as z.ZodType<number>,
