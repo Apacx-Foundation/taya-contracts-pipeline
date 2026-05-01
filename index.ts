@@ -57,6 +57,15 @@ export const DeploymentOutputSchema = z.object({
   bettingToken: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  delegatecallExecutor: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  fixedMathLib: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  lmsrBuyExactHelper: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   deployedAtBlock: z.number() as z.ZodType<number>,
 });
 
