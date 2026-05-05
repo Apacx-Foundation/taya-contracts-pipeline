@@ -57,15 +57,26 @@ export const DeploymentOutputSchema = z.object({
   bettingToken: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
-  delegatecallExecutor: z
-    .string()
-    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
   fixedMathLib: z
     .string()
     .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+  // APA-455: retired pattern, kept in JSON as audit trail of historical on-chain
+  // deploys. Optional so a fresh-chain bootstrap that never deployed them still
+  // validates. Nothing in the runtime code path reads either field.
+  delegatecallExecutor: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" })
+    .optional() as z.ZodType<Address | undefined>,
   LMSRBuyExactHelper: z
     .string()
-    .refine(isAddress, { message: "Invalid address" }) as z.ZodType<Address>,
+    .refine(isAddress, { message: "Invalid address" })
+    .optional() as z.ZodType<Address | undefined>,
+  // Set by 20260505-deploy-capped-lmsr-buy-exact.sh: the previous factory address
+  // before APA-455 swapped the canonical `cappedLmsrFactory`. Audit trail only.
+  cappedLmsrFactoryLegacy: z
+    .string()
+    .refine(isAddress, { message: "Invalid address" })
+    .optional() as z.ZodType<Address | undefined>,
   deployedAtBlock: z.number() as z.ZodType<number>,
 });
 
