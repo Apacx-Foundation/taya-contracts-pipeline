@@ -1,6 +1,6 @@
 {
   "bettingToken": "0x68F4779FcFBCE2e50E5DEA3821D753ba09f1bcAB",
-  "cappedLmsrFactory": "0x2eA1a34C4E8d87ADBAE27DdB8Ac5A5D4Cb78E35E",
+  "cappedLmsrFactory": "0xeAb9b6b1520BA19cd69Dc59f138159080f668709",
   "ctf": "0xfa01FBb904c282cE38252d28e9dede4Cc7d1594d",
   "deployedAtBlock": 85166135,
   "fpmmFactory": "0x510089e95161EC7abeFFa9D232860f27B0f86b6A",
@@ -9,5 +9,6 @@
   "whitelist": "0x9AA68DC810892baa75A3bB59d0E5F1aB86E37f2D",
   "fixedMathLib": "0x9feeC5a1D515E593880E40d8b4877B71ce73b23a",
   "LMSRBuyExactHelper": "0xAf864ce77Cd06B171590c028b9B687CBFF308A47",
-  "delegatecallExecutor": "0x94A3ECd95363DB3106DC594d7d234bC26d2F8c95"
+  "delegatecallExecutor": "0x94A3ECd95363DB3106DC594d7d234bC26d2F8c95",
+  "cappedLmsrFactoryLegacy": "0x2eA1a34C4E8d87ADBAE27DdB8Ac5A5D4Cb78E35E"
 }

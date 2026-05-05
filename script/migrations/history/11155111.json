@@ -30,6 +30,14 @@
       "chainId": "11155111",
       "executedAt": "2026-04-29T18:30:35Z",
       "txHashes": []
+    },
+    {
+      "name": "20260505-deploy-capped-lmsr-buy-exact",
+      "chainId": "11155111",
+      "executedAt": "2026-05-05T16:51:24Z",
+      "txHashes": [
+        "0xb71af1d3b3b50638ef09ad24ae88b9f459c2129b887ca334b6b0ed4ca3b1a73a"
+      ]
     }
   ]
 }
