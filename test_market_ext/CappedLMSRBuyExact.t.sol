@@ -4,7 +4,6 @@ import {ERC20Mintable} from "openzeppelin-solidity/contracts/token/ERC20/ERC20Mi
 import {ConditionalTokens} from "@gnosis.pm/conditional-tokens-contracts/contracts/ConditionalTokens.sol";
 import {CappedLMSRMarketMaker} from "../src_market_ext/CappedLMSRMarketMaker.sol";
 import {CappedLMSRDeterministicFactory} from "../src_market_ext/CappedLMSRDeterministicFactory.sol";
-import {LMSRBuyExactHelper} from "../src_market_ext/LMSRBuyExactHelper.sol";
 import {Whitelist} from "market-makers/Whitelist.sol";
 
 /// @dev Foundry HEVM cheatcode address.
@@ -15,13 +14,14 @@ interface Vm {
 /// @dev Test collateral token.
 contract TestCollateral2 is ERC20Mintable {}
 
-/// @dev Delegatecall proxy that mimics a smart-account user in production.
-///      `execute` runs `target`'s code in this proxy's storage/balance context — i.e., the
-///      pool will see msg.sender = proxy, and the proxy's ERC20 approval is what's used.
+/// @dev Account proxy mimicking a smart-account user — performs an external CALL
+///      into `target`, so the pool sees `msg.sender == proxy` and the proxy's
+///      ERC20 approval is what's used. The native pool entry-point `buyExactCollateral`
+///      makes the prior DELEGATECALL plumbing unnecessary (APA-455).
 contract UserProxy {
     function execute(address target, bytes memory data) public returns (bytes memory) {
         // solium-disable-next-line security/no-low-level-calls
-        (bool ok, bytes memory ret) = target.delegatecall(data);
+        (bool ok, bytes memory ret) = target.call(data);
         if (!ok) {
             assembly {
                 revert(add(ret, 0x20), mload(ret))
@@ -50,7 +50,7 @@ contract UserProxy {
     }
 }
 
-contract LMSRBuyExactHelperTest {
+contract CappedLMSRBuyExactTest {
     /*
      *  Constants
      */
@@ -62,7 +62,6 @@ contract LMSRBuyExactHelperTest {
     TestCollateral2 public collateral;
     ConditionalTokens public ctf;
     CappedLMSRDeterministicFactory public factory;
-    LMSRBuyExactHelper public lib;
     uint256 internal saltNonce;
 
     address public oracle;
@@ -72,7 +71,6 @@ contract LMSRBuyExactHelperTest {
         collateral = new TestCollateral2();
         ctf = new ConditionalTokens();
         factory = new CappedLMSRDeterministicFactory();
-        lib = new LMSRBuyExactHelper();
         oracle = address(this);
 
         collateral.mint(address(this), 10 ** 30);
@@ -162,9 +160,10 @@ contract LMSRBuyExactHelperTest {
         noId = uint256(keccak256(abi.encodePacked(address(collateral), noCollection)));
     }
 
-    /// @dev Compute (cost + fee) using the POOL's own `calcMarketFee` by temporarily swapping
-    ///      the fee rate to `baseFee + surcharge`. This mirrors `tradeWithSurcharge`'s effective
-    ///      rate exactly — no hand-rolled fee math that could drift from the contract's.
+    /// @dev Compute (cost + fee) using the POOL's own `calcMarketFee` by temporarily
+    ///      swapping the fee rate to `baseFee + surcharge`. Mirrors `tradeWithSurcharge`'s
+    ///      effective rate exactly — no hand-rolled fee math that could drift from
+    ///      the contract's.
     function _totalCostViaPool(CappedLMSRMarketMaker mm, uint256 outcomeTokens, uint8 outcomeIndex, uint64 surcharge)
         internal
         returns (uint256 totalCost, int256 rawCost)
@@ -197,11 +196,9 @@ contract LMSRBuyExactHelperTest {
     function test_buyExact_freshMarket_yes() public {
         uint256 funding = 1000 * ONE;
         uint256 collateralIn = 100 * ONE;
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, 0);
 
-        uint256 yesBal = ctf.balanceOf(address(mm), yesId);
-        uint256 noBal = ctf.balanceOf(address(mm), noId);
-        uint256 q = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 0, collateralIn, 0);
+        uint256 q = mm.calcBuyExactCollateral(0, collateralIn, 0);
 
         assertTrue(q > 0, "computed zero tokens");
         (uint256 totalCost,) = _totalCostViaPool(mm, q, 0, 0);
@@ -212,11 +209,9 @@ contract LMSRBuyExactHelperTest {
     function test_buyExact_freshMarket_no() public {
         uint256 funding = 1000 * ONE;
         uint256 collateralIn = 50 * ONE;
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, 0);
 
-        uint256 yesBal = ctf.balanceOf(address(mm), yesId);
-        uint256 noBal = ctf.balanceOf(address(mm), noId);
-        uint256 q = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 1, collateralIn, 0);
+        uint256 q = mm.calcBuyExactCollateral(1, collateralIn, 0);
 
         assertTrue(q > 0, "computed zero tokens");
         (uint256 totalCost,) = _totalCostViaPool(mm, q, 1, 0);
@@ -226,7 +221,7 @@ contract LMSRBuyExactHelperTest {
     /// @notice After prior trade shifted balances, exact-buy still satisfies invariant.
     function test_buyExact_afterOtherTrade() public {
         uint256 funding = 1000 * ONE;
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, 0);
         collateral.approve(address(mm), uint256(-1));
 
         // Prior trade: buy 200 NO, shifts balances
@@ -234,9 +229,7 @@ contract LMSRBuyExactHelperTest {
         priorAmts[1] = int256(200 * ONE);
         mm.trade(priorAmts, 0);
 
-        uint256 yesBal = ctf.balanceOf(address(mm), yesId);
-        uint256 noBal = ctf.balanceOf(address(mm), noId);
-        uint256 q = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 0, 100 * ONE, 0);
+        uint256 q = mm.calcBuyExactCollateral(0, 100 * ONE, 0);
 
         assertTrue(q > 0, "computed zero tokens");
         (uint256 totalCost,) = _totalCostViaPool(mm, q, 0, 0);
@@ -247,11 +240,9 @@ contract LMSRBuyExactHelperTest {
     function test_buyExact_withSurcharge() public {
         uint256 funding = 1000 * ONE;
         uint64 surcharge = uint64(5 * 10 ** 16); // 5%
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, 0);
 
-        uint256 yesBal = ctf.balanceOf(address(mm), yesId);
-        uint256 noBal = ctf.balanceOf(address(mm), noId);
-        uint256 q = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 0, 100 * ONE, surcharge);
+        uint256 q = mm.calcBuyExactCollateral(0, 100 * ONE, surcharge);
 
         assertTrue(q > 0, "computed zero tokens");
         (uint256 totalCost,) = _totalCostViaPool(mm, q, 0, surcharge);
@@ -262,23 +253,21 @@ contract LMSRBuyExactHelperTest {
     function test_buyExact_withBaseFee() public {
         uint256 funding = 1000 * ONE;
         uint64 baseFee = uint64(2 * 10 ** 16); // 2%
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, baseFee, 0);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, baseFee, 0);
 
-        uint256 yesBal = ctf.balanceOf(address(mm), yesId);
-        uint256 noBal = ctf.balanceOf(address(mm), noId);
-        uint256 q = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 0, 100 * ONE, 0);
+        uint256 q = mm.calcBuyExactCollateral(0, 100 * ONE, 0);
 
         assertTrue(q > 0, "computed zero tokens");
         (uint256 totalCost,) = _totalCostViaPool(mm, q, 0, 0);
         assertLe(totalCost, 100 * ONE, "overspend with base fee");
     }
 
-    /// @notice Full execution via delegatecall, coverCollateral=false (power-user path).
+    /// @notice Full execution via direct pool call, coverCollateral=false (power-user path).
     ///         User spends `cost+fee` (≤ collateralIn) — residual stays with them.
     function test_buyExact_exec_coverFalse_residualStaysWithUser() public {
         uint256 funding = 1000 * ONE;
         uint256 collateralIn = 100 * ONE;
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm, uint256 yesId,) = createBinaryMarket(funding, 0, 0);
 
         UserProxy proxy = new UserProxy();
         collateral.transfer(address(proxy), collateralIn);
@@ -287,17 +276,14 @@ contract LMSRBuyExactHelperTest {
         uint256 balBefore = collateral.balanceOf(address(proxy));
 
         bytes memory data = abi.encodeWithSignature(
-            "buyExactCollateral(address,uint256,uint256,uint8,uint256,uint256,uint64,bool)",
-            address(mm),
-            yesId,
-            noId,
+            "buyExactCollateral(uint8,uint256,uint256,uint64,bool)",
             uint8(0),
             collateralIn,
             uint256(0),
             uint64(0),
             false
         );
-        bytes memory ret = proxy.execute(address(lib), data);
+        bytes memory ret = proxy.execute(address(mm), data);
         uint256 qTokens = abi.decode(ret, (uint256));
 
         uint256 spent = balBefore - collateral.balanceOf(address(proxy));
@@ -306,12 +292,12 @@ contract LMSRBuyExactHelperTest {
         assertEq(ctf.balanceOf(address(proxy), yesId), qTokens, "user did not receive q tokens");
     }
 
-    /// @notice Full execution via delegatecall, coverCollateral=true (retail UX path).
+    /// @notice Full execution via direct pool call, coverCollateral=true (retail UX path).
     ///         User spends EXACTLY collateralIn — dust fee goes to pool.
     function test_buyExact_exec_coverTrue_exactSpend() public {
         uint256 funding = 1000 * ONE;
         uint256 collateralIn = 100 * ONE;
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm, uint256 yesId,) = createBinaryMarket(funding, 0, 0);
 
         UserProxy proxy = new UserProxy();
         collateral.transfer(address(proxy), collateralIn);
@@ -321,17 +307,14 @@ contract LMSRBuyExactHelperTest {
         uint256 poolBalBefore = collateral.balanceOf(address(mm));
 
         bytes memory data = abi.encodeWithSignature(
-            "buyExactCollateral(address,uint256,uint256,uint8,uint256,uint256,uint64,bool)",
-            address(mm),
-            yesId,
-            noId,
+            "buyExactCollateral(uint8,uint256,uint256,uint64,bool)",
             uint8(0),
             collateralIn,
             uint256(0),
             uint64(0),
             true
         );
-        bytes memory ret = proxy.execute(address(lib), data);
+        bytes memory ret = proxy.execute(address(mm), data);
         uint256 qTokens = abi.decode(ret, (uint256));
 
         uint256 spent = userBalBefore - collateral.balanceOf(address(proxy));
@@ -342,21 +325,19 @@ contract LMSRBuyExactHelperTest {
         assertTrue(qTokens > 0, "no tokens delivered");
         // Retail UX invariant: user spent EXACTLY collateralIn.
         assertEq(spent, collateralIn, "coverTrue: exact-spend violated");
-        // Dust fee bound — matches the documented invariant from the helper NatSpec:
-        // Fixed192x64Math's ~2^-62 relative precision → funding >> 60 collateral units
-        // + a 1024-wei floor for scale independence. A regression that grows dust by
-        // orders of magnitude must fail this. For funding = 1000*ONE ≈ 1.84e22, bound
-        // is ≈ 17_024 wei — 10^15× tighter than the previous `collateralIn/100`.
+        // Dust fee bound: Fixed192x64Math is ~2^-62 relative precision → funding>>60
+        // collateral units, plus a 1024-wei floor for scale independence. For
+        // funding = 1000*ONE ≈ 1.84e22, bound is ≈ 17_024 wei.
         uint256 dustBound = 1024 + (funding >> 60);
         assertLe(poolDust, dustBound, "coverTrue: dust exceeded documented bound");
         assertEq(ctf.balanceOf(address(proxy), yesId), qTokens, "user did not receive q tokens");
     }
 
-    /// @notice minOutcomeTokens enforcement: if lib computes q < minimum, trade reverts.
+    /// @notice minOutcomeTokens enforcement: if pool computes q < minimum, trade reverts.
     function test_buyExact_slippageRevert() public {
         uint256 funding = 1000 * ONE;
         uint256 collateralIn = 100 * ONE;
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, 0);
 
         UserProxy proxy = new UserProxy();
         collateral.transfer(address(proxy), collateralIn);
@@ -364,17 +345,14 @@ contract LMSRBuyExactHelperTest {
 
         // Set minOutcomeTokens unrealistically high: 10x the funding → impossible
         bytes memory data = abi.encodeWithSignature(
-            "buyExactCollateral(address,uint256,uint256,uint8,uint256,uint256,uint64,bool)",
-            address(mm),
-            yesId,
-            noId,
+            "buyExactCollateral(uint8,uint256,uint256,uint64,bool)",
             uint8(0),
             collateralIn,
             funding * 10,
             uint64(0),
             false
         );
-        (bool ok,) = address(proxy).call(abi.encodeWithSignature("execute(address,bytes)", address(lib), data));
+        (bool ok,) = address(proxy).call(abi.encodeWithSignature("execute(address,bytes)", address(mm), data));
         assertTrue(!ok, "should revert when minOutcomeTokens unreachable");
     }
 
@@ -382,38 +360,32 @@ contract LMSRBuyExactHelperTest {
     function test_buyExact_respectsMaxCostPerTx() public {
         uint256 funding = 1000 * ONE;
         uint256 maxCost = 5 * ONE; // very tight cap
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, maxCost);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, maxCost);
 
         UserProxy proxy = new UserProxy();
         collateral.transfer(address(proxy), 100 * ONE);
         proxy.doApprove(address(collateral), address(mm), 100 * ONE);
 
         bytes memory data = abi.encodeWithSignature(
-            "buyExactCollateral(address,uint256,uint256,uint8,uint256,uint256,uint64,bool)",
-            address(mm),
-            yesId,
-            noId,
+            "buyExactCollateral(uint8,uint256,uint256,uint64,bool)",
             uint8(0),
             100 * ONE,
             uint256(0),
             uint64(0),
             false
         );
-        (bool ok,) = address(proxy).call(abi.encodeWithSignature("execute(address,bytes)", address(lib), data));
+        (bool ok,) = address(proxy).call(abi.encodeWithSignature("execute(address,bytes)", address(mm), data));
         assertTrue(!ok, "should revert when computed trade exceeds maxCostPerTx");
     }
 
     /// @notice Monotonic: larger collateralIn → non-decreasing q, same market state.
     function test_buyExact_monotonicInCollateral() public {
         uint256 funding = 1000 * ONE;
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, 0);
 
-        uint256 yesBal = ctf.balanceOf(address(mm), yesId);
-        uint256 noBal = ctf.balanceOf(address(mm), noId);
-
-        uint256 qSmall = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 0, 10 * ONE, 0);
-        uint256 qMid = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 0, 100 * ONE, 0);
-        uint256 qBig = lib.calcBuyExactCollateral(address(mm), yesBal, noBal, 0, 500 * ONE, 0);
+        uint256 qSmall = mm.calcBuyExactCollateral(0, 10 * ONE, 0);
+        uint256 qMid = mm.calcBuyExactCollateral(0, 100 * ONE, 0);
+        uint256 qBig = mm.calcBuyExactCollateral(0, 500 * ONE, 0);
 
         assertLe(qSmall, qMid, "monotonic small->mid");
         assertLe(qMid, qBig, "monotonic mid->big");
@@ -423,27 +395,20 @@ contract LMSRBuyExactHelperTest {
     // Fuzz tests — the critical algorithm safety net
     // ============================================================
 
-    function _callCalcLib(
+    function _callCalc(
         CappedLMSRMarketMaker mm,
-        uint256 yesId,
-        uint256 noId,
         uint8 outcomeIndex,
         uint256 collateralIn,
         uint64 surcharge
     ) internal view returns (bool ok, uint256 q) {
-        uint256 yesBal = ctf.balanceOf(address(mm), yesId);
-        uint256 noBal = ctf.balanceOf(address(mm), noId);
         bytes memory data = abi.encodeWithSignature(
-            "calcBuyExactCollateral(address,uint256,uint256,uint8,uint256,uint64)",
-            address(mm),
-            yesBal,
-            noBal,
+            "calcBuyExactCollateral(uint8,uint256,uint64)",
             outcomeIndex,
             collateralIn,
             surcharge
         );
         bytes memory ret;
-        (ok, ret) = address(lib).staticcall(data);
+        (ok, ret) = address(mm).staticcall(data);
         if (ok && ret.length == 32) q = abi.decode(ret, (uint256));
     }
 
@@ -491,12 +456,10 @@ contract LMSRBuyExactHelperTest {
         uint256 priorAmount = priorTradeSeed % (10 * funding);
 
         CappedLMSRMarketMaker mm;
-        uint256 yesId;
-        uint256 noId;
-        (mm, yesId, noId) = createBinaryMarket(funding, 0, 0);
+        (mm,,) = createBinaryMarket(funding, 0, 0);
         if (!_doPriorTrade(mm, priorOutcomeIndex, priorAmount)) return;
 
-        (bool ok, uint256 q) = _callCalcLib(mm, yesId, noId, outcomeIndex, collateralIn, surcharge);
+        (bool ok, uint256 q) = _callCalc(mm, outcomeIndex, collateralIn, surcharge);
         if (!ok || q == 0) return;
 
         _assertInvariantHolds(mm, q, outcomeIndex, surcharge, collateralIn);
@@ -520,8 +483,8 @@ contract LMSRBuyExactHelperTest {
         uint256 collateralIn = (collateralInSeed % funding) + (funding / 1000);
         outcomeIndex = outcomeIndex % 2;
 
-        (CappedLMSRMarketMaker mm, uint256 yesId, uint256 noId) = createBinaryMarket(funding, 0, 0);
-        (bool ok, uint256 q) = _callCalcLib(mm, yesId, noId, outcomeIndex, collateralIn, uint64(0));
+        (CappedLMSRMarketMaker mm,,) = createBinaryMarket(funding, 0, 0);
+        (bool ok, uint256 q) = _callCalc(mm, outcomeIndex, collateralIn, uint64(0));
         if (!ok || q == 0) return;
 
         // Try q + SLACK and verify it exceeds collateralIn. SLACK = 16 wei + 1ppm of funding.
@@ -531,11 +494,9 @@ contract LMSRBuyExactHelperTest {
     }
 
     /// @notice ROUND-TRIP (fee=0): given arbitrary pool state and collateralIn,
-    ///           q = lib.calcBuyExactCollateral(mm, yesBal, noBal, 0, collateralIn, 0)
+    ///           q = mm.calcBuyExactCollateral(0, collateralIn, 0)
     ///         ⇒ mm.calcNetCost([q, 0]) ≈ collateralIn, with residual bounded by
     ///           Fixed192x64Math's relative precision.
-    ///         Binds the lib's output directly to the pool's `calcNetCost` — any drift means
-    ///         the closed-form inverse disagrees with the on-chain cost function.
     /// forge-config: market_ext.fuzz.runs = 5000
     /// forge-config: market_ext.fuzz.show-logs = true
     function testFuzz_roundTrip(
@@ -549,9 +510,7 @@ contract LMSRBuyExactHelperTest {
         uint256 collateralIn = (collateralInSeed % funding) + (funding / 1000);
 
         CappedLMSRMarketMaker mm;
-        uint256 yesId;
-        uint256 noId;
-        (mm, yesId, noId) = createBinaryMarket(funding, 0, 0);
+        (mm,,) = createBinaryMarket(funding, 0, 0);
 
         // Prime balances to arbitrary state. Either prior trade may revert for extreme values —
         // acceptable, just skip that fuzz run.
@@ -559,7 +518,7 @@ contract LMSRBuyExactHelperTest {
         if (!_doPriorTrade(mm, 0, yesPrimeSeed % funding)) return;
         if (!_doPriorTrade(mm, 1, noPrimeSeed % funding)) return;
 
-        (bool ok, uint256 q) = _callCalcLib(mm, yesId, noId, 0, collateralIn, uint64(0));
+        (bool ok, uint256 q) = _callCalc(mm, 0, collateralIn, uint64(0));
         if (!ok || q == 0) return;
 
         int256[] memory amounts = new int256[](2);
@@ -577,8 +536,6 @@ contract LMSRBuyExactHelperTest {
 
     /// @notice ROUND-TRIP with fees: same invariant but over the full fee path —
     ///           netCost(q) * (1 + (baseFee + surcharge)/FEE_RANGE) ≈ collateralIn.
-    ///         Matches what `tradeWithSurcharge` will actually charge on-chain. Exercises the
-    ///         fee arithmetic round-trip that testFuzz_roundTrip (fee=0) can't.
     /// forge-config: market_ext.fuzz.runs = 10000
     function testFuzz_roundTrip_withFees(
         uint256 fundingSeed,
@@ -614,15 +571,13 @@ contract LMSRBuyExactHelperTest {
         uint64 surcharge
     ) internal {
         CappedLMSRMarketMaker mm;
-        uint256 yesId;
-        uint256 noId;
-        (mm, yesId, noId) = createBinaryMarket(funding, baseFee, 0);
+        (mm,,) = createBinaryMarket(funding, baseFee, 0);
 
         collateral.approve(address(mm), uint256(-1));
         if (!_doPriorTrade(mm, 0, yesPrime)) return;
         if (!_doPriorTrade(mm, 1, noPrime)) return;
 
-        (bool ok, uint256 q) = _callCalcLib(mm, yesId, noId, 0, collateralIn, surcharge);
+        (bool ok, uint256 q) = _callCalc(mm, 0, collateralIn, surcharge);
         if (!ok || q == 0) return;
 
         _assertRoundTripWithFees(mm, q, surcharge, collateralIn, funding);
@@ -639,8 +594,8 @@ contract LMSRBuyExactHelperTest {
         assertTrue(rawCost > 0, "round-trip-fees: cost should be positive for buy");
         // Invariant 1 (hard): never overspend the user's budget.
         assertLe(totalCost, collateralIn, "round-trip-fees: OVERSPEND");
-        // Invariant 2 (tight): residual bounded by FP precision + fee-mul truncation (a few
-        // wei on top of the fee=0 bound).
+        // Invariant 2 (tight): residual bounded by FP precision + fee-mul truncation
+        // (a few wei on top of the fee=0 bound).
         uint256 slack = 1024 + (funding >> 60) + 16;
         assertLe(collateralIn - totalCost, slack, "round-trip-fees: q too conservative");
     }
