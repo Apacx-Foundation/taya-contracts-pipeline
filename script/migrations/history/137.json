@@ -29,6 +29,14 @@
       "chainId": "137",
       "executedAt": "2026-04-29T19:01:31Z",
       "txHashes": []
+    },
+    {
+      "name": "20260525-deploy-lmsr-buy-exact-helper",
+      "chainId": "137",
+      "executedAt": "2026-05-25T20:16:17Z",
+      "txHashes": [
+        "0xc3d76c3f50c43064c9e2bb07538f2a4f4b3b693040362626172365e93eba7748"
+      ]
     }
   ]
 }
